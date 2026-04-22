@@ -15,30 +15,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Tailwind Configuration -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        brand: {
-                            50: '#f5f3ff',
-                            100: '#ede9fe',
-                            500: '#8b5cf6',
-                            600: '#7c3aed',
-                            900: '#4c1d95',
-                        },
-                        accent: {
-                            500: '#ec4899',
-                            600: '#db2777',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <script src="tailwind_confg.js"></script>
 
     <style>
         /* Floating animations for background images */
@@ -338,38 +315,7 @@
         </div>
     </footer>
 
-    <!-- Active Navigation Link Script -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const sections = document.querySelectorAll('section');
-            const navLinks = document.querySelectorAll('.nav-link');
-
-            window.addEventListener('scroll', () => {
-                let current = '';
-
-                sections.forEach(section => {
-                    const sectionTop = section.offsetTop;
-                    const sectionHeight = section.clientHeight;
-                    // Trigger when section is 200px from the top
-                    if (window.scrollY >= (sectionTop - 200)) {
-                        current = section.getAttribute('id');
-                    }
-                });
-
-                navLinks.forEach(link => {
-                    // Reset all links to default state
-                    link.classList.remove('text-brand-600', 'font-bold');
-                    link.classList.add('text-gray-600', 'font-semibold');
-
-                    // Set active state for the current section
-                    if (link.getAttribute('href') === `#${current}`) {
-                        link.classList.remove('text-gray-600', 'font-semibold');
-                        link.classList.add('text-brand-600', 'font-bold');
-                    }
-                });
-            });
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
 
 </html>
