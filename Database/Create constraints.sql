@@ -1,0 +1,2 @@
+ALTER TABLE UserImages
+ADD CONSTRAINT UQ_UserImages_UserId UNIQUE (UserId);
