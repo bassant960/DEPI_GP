@@ -1,18 +1,18 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, MetaData, Table, select
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, select
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 import datetime
 import logging
+import uvicorn
 
-
-# Database Configuration
-
+# 1. Database Configuration
 DATABASE_FILE = "vwear.db"
-
 SQLALCHEMY_DATABASE_URL = f"sqlite:///./{DATABASE_FILE}"
 
 engine = create_engine(
@@ -20,293 +20,158 @@ engine = create_engine(
     connect_args={"check_same_thread": False}
 )
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 metadata = MetaData()
 
+# 2. Define Table Structure (لضمان مطابقة الـ SQL مع البريد الإلكتروني)
+users_table = Table(
+    'Users', metadata,
+    Column('Id', Integer, primary_key=True),
+    Column('Username', String(50), unique=True, nullable=False),
+    Column('Email', String(100), unique=True, nullable=False), # إضافة حقل الميل
+    Column('PasswordHash', String(255), nullable=False),
+    Column('CreatedAt', DateTime, default=datetime.datetime.utcnow)
+)
 
-# Load Existing Tables
+# إنشاء الجدول في vwear.db إذا لم يكن موجوداً
+metadata.create_all(bind=engine)
 
-try:
-
-    metadata.reflect(bind=engine)
-
-    users_table = Table(
-        'users',
-        metadata,
-        autoload_with=engine
-    )
-
-except Exception as e:
-
-    logging.error(f"Database Error: {e}")
-
-    raise Exception(
-        "Could not connect to users table"
-    )
-
-
-# Security Configuration
-
-
-SECRET_KEY = "CHANGE_THIS_SECRET_KEY"
-
+# 3. Security Configuration
+SECRET_KEY = "vwear_super_secret_key_2026_backend_project"
 ALGORITHM = "HS256"
-
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
 
+app = FastAPI(title="VWear Backend API")
 
-# FastAPI App
-
-app = FastAPI(
-    title="VWear Backend API"
-)
-
-
-# CORS
+# 4. CORS (للسماح بالاتصال من الـ Frontend)
 app.add_middleware(
     CORSMiddleware,
-
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500"
-    ],
-
+    allow_origins=["*"], 
     allow_credentials=True,
-
     allow_methods=["*"],
-
     allow_headers=["*"],
 )
 
-
-# Schemas
+# 5. Schemas
 class UserSignup(BaseModel):
-
-    name: str
+    username: str
     email: EmailStr
-    password: str
-
+    password: str = Field(min_length=6, max_length=72)
 
 class UserLogin(BaseModel):
-
     email: EmailStr
     password: str
 
-# Database Dependency
-
+# 6. Helper Functions
 def get_db():
-
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-# Helper Functions
-
 def hash_password(password: str):
+
+    password = password.encode("utf-8")[:72].decode("utf-8", "ignore")
 
     return pwd_context.hash(password)
 
+def verify_password(plain_password: str, hashed_password: str):
 
-def verify_password(
-    plain_password: str,
-    hashed_password: str
-):
+    plain_password = plain_password.encode("utf-8")[:72].decode("utf-8", "ignore")
 
-    return pwd_context.verify(
-        plain_password,
-        hashed_password
-    )
-
+    return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(email: str):
-
     payload = {
         "sub": email,
-
-        "exp": datetime.datetime.utcnow() +
-               datetime.timedelta(
-                   hours=ACCESS_TOKEN_EXPIRE_HOURS
-               )
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-    token = jwt.encode(
-        payload,
-        SECRET_KEY,
-        algorithm=ALGORITHM
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+# 7. API Endpoints
+
+@app.post("/signup")
+async def signup(user: UserSignup, db: Session = Depends(get_db)):
+
+    # التأكد من عدم تكرار الإيميل أو اسم المستخدم
+    query = select(users_table).where(
+        (users_table.c.Email == user.email) |
+        (users_table.c.Username == user.username)
     )
 
-    return token
+    existing_user = db.execute(query).fetchone()
 
-
-# Signup API
-@app.post("/signup")
-async def signup(
-    user: UserSignup,
-    db: Session = Depends(get_db)
-):
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Username or Email already registered"
+        )
 
     try:
 
-        # Check existing email
-        query = select(users_table).where(
-            users_table.c.email == user.email
-        )
+        hashed_pw = hash_password(user.password)
 
-        existing_user = db.execute(
-            query
-        ).fetchone()
-
-        if existing_user:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Email already registered"
-            )
-
-        # Password validation
-        if len(user.password) < 8:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Password must be at least 8 characters"
-            )
-
-        # Hash password
-        hashed_pw = hash_password(
-            user.password
-        )
-
-        # Insert user
         insert_stmt = users_table.insert().values(
-            name=user.name,
-            email=user.email,
-            password=hashed_pw
+            Username=user.username,
+            Email=user.email,
+            PasswordHash=hashed_pw
         )
 
         db.execute(insert_stmt)
 
         db.commit()
 
-        # Create token
-        token = create_access_token(
-            user.email
-        )
+        token = create_access_token(user.email)
 
         return {
-
             "message": "User created successfully",
-
             "token": token,
-
-            "name": user.name,
-
-            "email": user.email
+            "username": user.username
         }
-
-    except HTTPException as e:
-
-        raise e
 
     except Exception as e:
 
         db.rollback()
 
-        logging.error(f"Signup Error: {e}")
+        print("SIGNUP ERROR =>", e)
 
         raise HTTPException(
             status_code=500,
-            detail="Internal Server Error"
+            detail=str(e)
         )
 
-# Login API
 @app.post("/login")
-async def login(
-    user: UserLogin,
-    db: Session = Depends(get_db)
-):
+async def login(user: UserLogin, db: Session = Depends(get_db)):
+    # البحث باستخدام الإيميل
+    query = select(users_table).where(users_table.c.Email == user.email)
+    db_user = db.execute(query).fetchone()
 
-    try:
-        # Search user
-        query = select(users_table).where(
-            users_table.c.email == user.email
-        )
+    if not db_user or not verify_password(user.password, db_user.PasswordHash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        db_user = db.execute(
-            query
-        ).fetchone()
+    token = create_access_token(db_user.Email)
+    return {"message": "Login successful", "token": token, "username": db_user.Username}
 
-        # Validate user
-        if not db_user:
-
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid email or password"
-            )
-
-        # Verify password
-        if not verify_password(
-            user.password,
-            db_user.password
-        ):
-
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid email or password"
-            )
-
-        # Create token
-        token = create_access_token(
-            db_user.email
-        )
-
-        return {
-
-            "message": "Login successful",
-
-            "token": token,
-
-            "name": db_user.name,
-
-            "email": db_user.email
-        }
-
-    except HTTPException as e:
-
-        raise e
-
-    except Exception as e:
-
-        logging.error(f"Login Error: {e}")
-
-        raise HTTPException(
-            status_code=500,
-            detail="Internal Server Error"
-        )
-
-# Home Route
+@app.get("/profile")
+def profile(user_data = Depends(verify_token)):
+    return {"message": "Authorized", "user": user_data}
 
 @app.get("/")
 def home():
+    return {"message": "VWear Backend Running Successfully"}
 
-    return {
-
-        "message": "VWear Backend Running Successfully"
-    }
-
-# Run Server
-
+# 8. Run Server
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
