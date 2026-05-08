@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - VWear</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] }, colors: { brand: { 500: '#8b5cf6', 600: '#7c3aed' }, accent: { 500: '#ec4899' } } } } }
+    </script>
+    <style>
+        .bg-mesh {
+            background-color: #faf5ff;
+            background-image: radial-gradient(at 10% 10%, rgba(139, 92, 246, 0.2), transparent 50%), radial-gradient(at 90% 10%, rgba(236, 72, 153, 0.2), transparent 50%), radial-gradient(at 50% 50%, rgba(59, 130, 246, 0.15), transparent 50%);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+
+<body class="bg-mesh font-sans flex items-center justify-center min-h-screen">
+    <div class="glass-card rounded-3xl p-10 w-full max-w-md shadow-lg">
+        <div class="text-center mb-8">
+            <div
+                class="w-12 h-12 mx-auto bg-gradient-to-r from-brand-600 to-accent-500 text-white flex items-center justify-center rounded-xl text-xl font-bold">
+                V</div>
+            <h2 class="text-2xl font-bold mt-4">Welcome Back</h2>
+            <p class="text-gray-600">Login to your account</p>
+        </div>
+        <form class="space-y-5" id="loginForm">
+            <div>
+                <label class="block text-sm font-semibold mb-1">Email</label>
+                <input type="email" id="logEmail" placeholder="Enter your email"
+                    class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none"
+                    required>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1">Password</label>
+                <input type="password" id="logPass" placeholder="Enter your password"
+                    class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none"
+                    required>
+            </div>
+            <button type="submit"
+                class="w-full bg-gradient-to-r from-brand-600 to-accent-500 text-white py-3 rounded-xl font-bold hover:opacity-90 transition shadow-lg shadow-brand-500/20">Login</button>
+        </form>
+        <p class="text-center text-sm mt-6">Don't have an account? <a href="vwear_signup.html"
+                class="text-brand-600 font-semibold hover:underline">Sign up</a></p>
+    </div>
+    <script>
+
+        document.getElementById('loginForm')
+            .addEventListener('submit', async (e) => {
+
+                e.preventDefault();
+
+                const email =
+                    document.getElementById('logEmail').value;
+
+                const password =
+                    document.getElementById('logPass').value;
+
+                try {
+
+                    const response = await fetch(
+                        'http://127.0.0.1:8000/login',
+                        {
+
+                            method: 'POST',
+
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+
+                            body: JSON.stringify({
+
+                                email: email,
+
+                                password: password
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+
+                        alert(data.detail);
+
+                        return;
+                    }
+
+                    // حفظ البيانات
+                    localStorage.setItem(
+                        "vwear_name",
+                        data.username
+                    );
+
+                    localStorage.setItem(
+                        "vwear_email",
+                        email
+                    );
+
+                    localStorage.setItem(
+                        "token",
+                        data.token
+                    );
+
+                    alert("Login Successful");
+
+                    console.log(data);
+
+                    // تحويل للهوم
+                    window.location.href =
+                        'index.html';
+
+                } catch (error) {
+
+                    console.error(error);
+
+                    alert("Server Error");
+                }
+            });
+
+    </script>
+</body>
+
+</html>
