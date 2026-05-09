@@ -404,23 +404,51 @@
         let currentViewIndex = 0;
         let isGridMode = false;
 
-        // Image Upload Logic
-        function handleImageUpload(event) {
+        // ============================================================
+        // Image Upload Logic — مربوط بالـ API فعلياً
+        // ============================================================
+        async function handleImageUpload(event) {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const imageUrl = e.target.result;
+            if (!file) return;
 
-                    // Update images in the UI
-                    document.getElementById('model-image').src = imageUrl;
+            // 1. اعرض الصورة locally أولاً عشان التجربة تكون سريعة
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById('model-image').src = e.target.result;
+                document.getElementById('upload-placeholder').classList.add('hidden');
+                document.getElementById('uploaded-preview').classList.remove('hidden');
+                document.getElementById('change-photo-btn').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
 
-                    // Toggle visibility of UI elements
-                    document.getElementById('upload-placeholder').classList.add('hidden');
-                    document.getElementById('uploaded-preview').classList.remove('hidden');
-                    document.getElementById('change-photo-btn').classList.remove('hidden');
+            // 2. ابعت الصورة للـ Backend
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.warn('User not logged in — image shown locally only');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('front', file); // front image افتراضياً
+
+                const response = await fetch('http://127.0.0.1:8000/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    console.error('Upload failed:', err.detail);
+                    return;
                 }
-                reader.readAsDataURL(file);
+
+                const data = await response.json();
+                console.log('Image saved on server:', data.paths);
+
+            } catch (error) {
+                console.error('Upload error:', error);
             }
         }
 
