@@ -73,7 +73,6 @@
             border: 1px solid rgba(255, 255, 255, 0.8);
         }
 
-        /* لتمييز الطقم المختار */
         .selected-outfit {
             outline: 4px solid #7c3aed;
             transform: scale(0.98);
@@ -234,7 +233,7 @@
 
     <script>
 
-        // حماية الصفحة
+        // page token
         const token = localStorage.getItem("token");
 
         if (!token) {
@@ -242,7 +241,7 @@
             window.location.href = "login.html";
         }
 
-        // --- 1. نظام التبديل بين الصفحات ---
+        // --- 1. switching between pages---
         function showSection(id) {
             document.getElementById('main-content').style.display = (id === 'main-content') ? 'block' : 'none';
             document.getElementById('profile-section').style.display = (id === 'profile-section') ? 'block' : 'none';
@@ -250,7 +249,7 @@
             window.scrollTo(0, 0);
         }
 
-        // --- 2. نظام جلب وعرض البيانات تلقائياً ---
+        // --- 2. Auromatically retrieve and display data---
         function updateProfileUI() {
 
             const savedName = localStorage.getItem('vwear_name') || "VWear User";
@@ -272,7 +271,7 @@
             document.getElementById('contact-email').value = savedEmail;
         }
 
-        // --- 3. تشغيل الوظائف التفاعلية ---
+        // --- 3. Activating interactive functions---
         let selectedFile = null;
 
         let selectedOutfitUrl = null;
@@ -329,7 +328,6 @@
             window.location.href = "login.html";
         }
 
-        // تشغيل التحديث بمجرد فتح الصفحة
         document.addEventListener('DOMContentLoaded', updateProfileUI);
 
     </script>

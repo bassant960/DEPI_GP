@@ -105,7 +105,7 @@
                 const confirmPassword =
                     document.getElementById('confirmPassword').value;
 
-                // التحقق من الباسورد
+                // check passeord
                 if (password !== confirmPassword) {
 
                     alert("Passwords do not match!");
@@ -145,7 +145,7 @@
                         return;
                     }
 
-                    // حفظ البيانات
+                    // save data
                     localStorage.setItem(
                         "vwear_name",
                         data.username
@@ -163,7 +163,7 @@
 
                     alert("Signup Successful");
 
-                    // تحويل لصفحة الهوم
+                    // to home
                     window.location.href =
                         'index.html';
 

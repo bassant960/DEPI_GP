@@ -1,6 +1,3 @@
--- ============================================================
--- VWear Database Schema — SQLite Compatible
-
 
 CREATE TABLE IF NOT EXISTS Users (
     Id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,6 +10,7 @@ CREATE TABLE IF NOT EXISTS Users (
 CREATE TABLE IF NOT EXISTS UserImages (
     Id          INTEGER PRIMARY KEY AUTOINCREMENT,
     UserId      INTEGER NOT NULL UNIQUE,   
+
     FrontImage  TEXT(500),
     BackImage   TEXT(500),
     LeftImage   TEXT(500),
@@ -20,5 +18,4 @@ CREATE TABLE IF NOT EXISTS UserImages (
     CreatedAt   DATETIME DEFAULT (datetime('now')),
     FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
 );
-
 

@@ -14,9 +14,6 @@ import os
 import uuid
 import uvicorn
 
-# ============================================================
-# 1. Database Configuration — SQLite (مش SQL Server)
-# ============================================================
 DATABASE_FILE = "vwear.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///./{DATABASE_FILE}"
 
@@ -28,9 +25,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 metadata = MetaData()
 
-# ============================================================
-# 2. Tables — مكتوبة بـ SQLAlchemy مش SQL Server syntax
-# ============================================================
+
 users_table = Table(
     'Users', metadata,
     Column('Id', Integer, primary_key=True, autoincrement=True),
@@ -40,11 +35,10 @@ users_table = Table(
     Column('CreatedAt', DateTime, default=datetime.datetime.utcnow)
 )
 
-# جدول الصور — كل يوزر ليه صف واحد بس (UNIQUE على UserId)
 user_images_table = Table(
     'UserImages', metadata,
     Column('Id', Integer, primary_key=True, autoincrement=True),
-    Column('UserId', Integer, nullable=False),        # FK للـ Users
+    Column('UserId', Integer, nullable=False),       
     Column('FrontImage', String(500), nullable=True),
     Column('BackImage', String(500), nullable=True),
     Column('LeftImage', String(500), nullable=True),
@@ -52,7 +46,6 @@ user_images_table = Table(
     Column('CreatedAt', DateTime, default=datetime.datetime.utcnow)
 )
 
-# إنشاء الجداول لو مش موجودة
 metadata.create_all(bind=engine)
 
 # ============================================================
@@ -76,7 +69,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # ============================================================
 app = FastAPI(title="VWear Backend API")
 
-# Serve uploaded images as static files — الـ frontend يقدر يعرضها
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
@@ -100,14 +92,14 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-# ✅ User Model — بيرجع بيانات اليوزر بشكل نظيف (من غير password)
+#  User Model 
 class UserResponse(BaseModel):
     id: int
     username: str
     email: str
     created_at: datetime.datetime
 
-# ✅ Image Model — بيرجع الصور المحفوظة للـ user
+#  Image Model 
 class UserImagesResponse(BaseModel):
     user_id: int
     front_image: Optional[str]
@@ -151,12 +143,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 def save_image(file: UploadFile) -> str:
     """يحفظ الصورة على السيرفر ويرجع الـ path"""
-    ext = os.path.splitext(file.filename)[1]  # .jpg / .png إلخ
+    ext = os.path.splitext(file.filename)[1]  
     filename = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(UPLOAD_DIR, filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    return f"/uploads/{filename}"  # الـ URL اللي الـ frontend هيستخدمه
+    return f"/uploads/{filename}" 
 
 # ============================================================
 # 8. Auth Endpoints
@@ -198,12 +190,11 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
     return {"message": "Login successful", "token": token, "username": db_user.Username}
 
 # ============================================================
-# 9. User Profile Endpoint ✅ (User Model)
+# 9. User Profile Endpoint  (User Model)
 # ============================================================
 
 @app.get("/profile", response_model=UserResponse)
 def get_profile(user_data=Depends(verify_token), db: Session = Depends(get_db)):
-    """يرجع بيانات اليوزر الحالي من الـ token"""
     email = user_data.get("sub")
     query = select(users_table).where(users_table.c.Email == email)
     db_user = db.execute(query).fetchone()
@@ -217,7 +208,7 @@ def get_profile(user_data=Depends(verify_token), db: Session = Depends(get_db)):
     )
 
 # ============================================================
-# 10. Image Upload Endpoints ✅ (Image Upload System)
+# 10. Image Upload Endpoints  (Image Upload System)
 # ============================================================
 
 @app.post("/upload-image")
@@ -229,10 +220,7 @@ async def upload_image(
     user_data=Depends(verify_token),
     db: Session = Depends(get_db)
 ):
-    """
-    يستقبل صور المستخدم (front, back, left, right) ويحفظها.
-    ممكن ترفع صورة واحدة أو أكتر في نفس الوقت.
-    """
+   
     email = user_data.get("sub")
     query = select(users_table).where(users_table.c.Email == email)
     db_user = db.execute(query).fetchone()
@@ -241,7 +229,6 @@ async def upload_image(
 
     user_id = db_user.Id
 
-    # حفظ الصور اللي اتبعتوا
     saved = {}
     if front:
         saved["FrontImage"] = save_image(front)
@@ -255,7 +242,6 @@ async def upload_image(
     if not saved:
         raise HTTPException(status_code=400, detail="No images provided")
 
-    # لو اليوزر عنده صور قبل كده → Update، لو لأ → Insert
     existing = db.execute(
         select(user_images_table).where(user_images_table.c.UserId == user_id)
     ).fetchone()
@@ -281,7 +267,6 @@ async def upload_image(
 
 @app.get("/my-images", response_model=UserImagesResponse)
 def get_my_images(user_data=Depends(verify_token), db: Session = Depends(get_db)):
-    """يرجع الصور المحفوظة للـ user الحالي"""
     email = user_data.get("sub")
     query = select(users_table).where(users_table.c.Email == email)
     db_user = db.execute(query).fetchone()

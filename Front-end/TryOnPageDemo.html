@@ -405,13 +405,13 @@
         let isGridMode = false;
 
         // ============================================================
-        // Image Upload Logic — مربوط بالـ API فعلياً
+        // Image Upload Logic 
         // ============================================================
         async function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            // 1. اعرض الصورة locally أولاً عشان التجربة تكون سريعة
+            // 1. Diasplay image locally
             const reader = new FileReader();
             reader.onload = function (e) {
                 document.getElementById('model-image').src = e.target.result;
@@ -421,7 +421,7 @@
             };
             reader.readAsDataURL(file);
 
-            // 2. ابعت الصورة للـ Backend
+            // 2. send image to backend
             const token = localStorage.getItem('token');
             if (!token) {
                 console.warn('User not logged in — image shown locally only');
@@ -430,7 +430,7 @@
 
             try {
                 const formData = new FormData();
-                formData.append('front', file); // front image افتراضياً
+                formData.append('front', file);
 
                 const response = await fetch('http://127.0.0.1:8000/upload-image', {
                     method: 'POST',
@@ -592,10 +592,9 @@
             }
         }
 
-        // إضافة التحكم باستخدام أسهم الكيبورد
+        // Control by keyboard arrows
         document.addEventListener('keydown', function (event) {
             const imageContainer = document.getElementById('image-container');
-            // التأكد أن شاشة العرض الفردية ظاهرة للمستخدم
             if (!imageContainer.classList.contains('hidden') && !imageContainer.classList.contains('opacity-0')) {
                 if (event.key === 'ArrowRight') {
                     nextView();
