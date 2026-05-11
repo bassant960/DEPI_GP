@@ -144,3 +144,6 @@ The system follows these steps:
 - Body / pose detection
 - Clothes alignment
 - Image synthesis (overlay or generation)
+
+## Testing Branches
+Testing Git Branches by Abdelrhman
