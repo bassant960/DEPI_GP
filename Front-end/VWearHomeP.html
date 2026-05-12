@@ -108,14 +108,17 @@
 
                 <!-- Auth Buttons -->
                 <div class="hidden md:flex items-center space-x-4">
-                    <button class="text-gray-800 hover:text-brand-600 font-semibold px-4 py-2 transition-colors">
-                        Login
-                    </button>
-                    <button
-                        class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 shadow-md shadow-brand-500/20">
-                        Sign Up
-                    </button>
-                </div>
+                    <!-- Login Button -->
+                    <a href="vwear.html" class="text-gray-800 hover:text-brand-600 font-semibold px-4 py-2 transition-colors">
+                     Login
+                    </a>
+    
+                   <!-- Sign Up Button -->
+                   <a href="vwear_signup.html" 
+                      class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 shadow-md shadow-brand-500/20">
+                       Sign Up
+                   </a>
+                 </div>
             </div>
         </div>
     </nav>
@@ -168,20 +171,23 @@
             </p>
 
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                    class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2 group">
-                    Try it Now
-                    <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
+                <a href="javascript:void(0)" 
+                     onclick="handleTryItNow()"
+                     class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2 group">
+                     Try it Now
+                     <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none"
+                         stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
                     </svg>
-                </button>
+                </a>
+
+   
                 <a href="#how-it-works"
                     class="glass-card hover:bg-white/90 text-gray-900 px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2">
-                    How it works?
-                </a>
-            </div>
+                   How it works?
+                 </a>
+            </div>              
         </div>
     </section>
 
@@ -316,6 +322,19 @@
     </footer>
 
     <script src="script.js"></script>
+    <script>
+        function handleTryItNow() {
+            const token = localStorage.getItem('token'); 
+            
+        //Check if already loged in
+                if (token) {
+        window.location.href = 'dashboard.html'; 
+                }
+                 else {
+        window.location.href = 'vwear.html'; 
+    }
+}
+</script>
 </body>
 
 </html>
