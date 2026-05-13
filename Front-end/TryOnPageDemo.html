@@ -324,7 +324,7 @@
                     </button>
 
                     <!-- Result Image (Active View) -->
-                    <img id="mirror-result" src="" alt="Result View"
+                    <img id="mirror-result" src="assets/frontView.avif" alt="Result View"
                         class="absolute inset-0 w-full h-full object-contain object-center transition-opacity duration-500">
                 </div>
 
@@ -337,7 +337,7 @@
                         <span
                             class="absolute top-2 left-2 bg-brand-600 text-white text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md z-10 shadow-sm">Front
                             View</span>
-                        <img src="frontView.avif" alt="Front"
+                        <img src="assets/frontView.avif" alt="Front"
                             class="w-full h-full object-contain object-center transition-transform group-hover:scale-105">
                     </div>
                     <!-- Back View (Replaced Original) -->
@@ -346,7 +346,7 @@
                         <span
                             class="absolute top-2 left-2 bg-gray-800/80 backdrop-blur-sm text-white text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md z-10 shadow-sm">Back
                             View</span>
-                        <img src="backView.jpg" alt="Back"
+                        <img src="assets/backView.avif" alt="Back"
                             class="w-full h-full object-contain object-center transition-transform group-hover:scale-105">
                     </div>
                     <!-- Left Side View -->
@@ -355,7 +355,7 @@
                         <span
                             class="absolute top-2 left-2 bg-brand-500/80 backdrop-blur-sm text-white text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md z-10 shadow-sm">Left
                             Side</span>
-                        <img src="leftView.avif" alt="Left Side"
+                        <img src="assets/leftView.avif" alt="Left Side"
                             class="w-full h-full object-contain object-center transition-transform group-hover:scale-105">
                     </div>
                     <!-- Right Side View -->
@@ -364,7 +364,7 @@
                         <span
                             class="absolute top-2 left-2 bg-brand-500/80 backdrop-blur-sm text-white text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md z-10 shadow-sm">Right
                             Side</span>
-                        <img src="rightView.jpg" alt="Right Side"
+                        <img src="assets/rightView.avif" alt="Right Side"
                             class="w-full h-full object-contain object-center transition-transform group-hover:scale-105">
                     </div>
                 </div>
@@ -395,10 +395,10 @@
     <script>
         // Updated Data for Multi-View Generation to include Back View
         const viewData = [
-            { name: "Front View", src: "frontView.avif" },
-            { name: "Back View", src: "backView.jpg" },
-            { name: "Left Side View", src: "leftView.avif" },
-            { name: "Right Side View", src: "rightView.jpg" }
+            { name: "Front View", src: "assets/frontView.avif" },
+            { name: "Back View", src: "assets/backView.avif" },
+            { name: "Left Side View", src: "assets/leftView.avif" },
+            { name: "Right Side View", src: "assets/rightView.avif" }
         ];
 
         let currentViewIndex = 0;
