@@ -1,140 +1,173 @@
 -- =========================
 -- USERS
 -- =========================
-CREATE TABLE IF NOT EXISTS Users (
-    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    Username        TEXT(50) UNIQUE NOT NULL,
-    Email           TEXT(100) UNIQUE NOT NULL,
-    PasswordHash    TEXT(255) NOT NULL,
-    CreatedAt       DATETIME DEFAULT (datetime('now'))
-);
+IF OBJECT_ID('Users', 'U') IS NULL
+BEGIN
+    CREATE TABLE Users (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        Username NVARCHAR(50) UNIQUE NOT NULL,
+        Email NVARCHAR(100) UNIQUE NOT NULL,
+        PasswordHash NVARCHAR(255) NOT NULL,
+        CreatedAt DATETIME DEFAULT GETDATE()
+    );
+END
+GO
 
 -- =========================
 -- USER IMAGES
 -- =========================
-CREATE TABLE IF NOT EXISTS UserImages (
-    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    UserId          INTEGER NOT NULL UNIQUE,
+IF OBJECT_ID('UserImages', 'U') IS NULL
+BEGIN
+    CREATE TABLE UserImages (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        UserId INT NOT NULL UNIQUE,
 
-    FrontImage      TEXT(500),
-    BackImage       TEXT(500),
-    LeftImage       TEXT(500),
-    RightImage      TEXT(500),
+        FrontImage NVARCHAR(500),
+        BackImage NVARCHAR(500),
+        LeftImage NVARCHAR(500),
+        RightImage NVARCHAR(500),
 
-    ImageFormat     TEXT(20),
-    FileSizeKB      REAL,
-    Width           INTEGER,
-    Height          INTEGER,
+        ImageFormat NVARCHAR(20),
+        FileSizeKB FLOAT,
+        Width INT,
+        Height INT,
 
-    CreatedAt       DATETIME DEFAULT (datetime('now')),
+        CreatedAt DATETIME DEFAULT GETDATE(),
 
-    FOREIGN KEY (UserId)
-        REFERENCES Users(Id)
-        ON DELETE CASCADE
-);
+        CONSTRAINT FK_UserImages_Users
+            FOREIGN KEY (UserId)
+            REFERENCES Users(Id)
+            ON DELETE CASCADE
+    );
+END
+GO
 
 -- =========================
 -- USER MEASUREMENTS
 -- =========================
-CREATE TABLE IF NOT EXISTS Measurements (
-    Id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-    UserId                  INTEGER NOT NULL,
+IF OBJECT_ID('Measurements', 'U') IS NULL
+BEGIN
+    CREATE TABLE Measurements (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        UserId INT NOT NULL,
 
-    Height                  REAL,
-    Weight                  REAL,
-    Chest                   REAL,
-    Waist                   REAL,
-    Hips                    REAL,
-    ShoulderWidth           REAL,
-    SleeveLength            REAL,
-    InseamLength            REAL,
+        Height FLOAT,
+        Weight FLOAT,
+        Chest FLOAT,
+        Waist FLOAT,
+        Hips FLOAT,
+        ShoulderWidth FLOAT,
+        SleeveLength FLOAT,
+        InseamLength FLOAT,
 
-    RecommendedTopSize      TEXT(10),
-    RecommendedBottomSize   TEXT(10),
-    ConfidenceScore         REAL,
+        RecommendedTopSize NVARCHAR(10),
+        RecommendedBottomSize NVARCHAR(10),
+        ConfidenceScore FLOAT,
 
-    CreatedAt               DATETIME DEFAULT (datetime('now')),
+        CreatedAt DATETIME DEFAULT GETDATE(),
 
-    FOREIGN KEY (UserId)
-        REFERENCES Users(Id)
-        ON DELETE CASCADE
-);
+        CONSTRAINT FK_Measurements_Users
+            FOREIGN KEY (UserId)
+            REFERENCES Users(Id)
+            ON DELETE CASCADE
+    );
+END
+GO
 
 -- =========================
 -- CLOTHING CATALOG
 -- =========================
-CREATE TABLE IF NOT EXISTS ClothingCatalog (
-    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+IF OBJECT_ID('ClothingCatalog', 'U') IS NULL
+BEGIN
+    CREATE TABLE ClothingCatalog (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
 
-    Name            TEXT(100) NOT NULL,
-    Category        TEXT(50),
-    Brand           TEXT(100),
+        Name NVARCHAR(100) NOT NULL,
+        Category NVARCHAR(50),
+        Brand NVARCHAR(100),
 
-    SizeXS          INTEGER DEFAULT 0,
-    SizeS           INTEGER DEFAULT 0,
-    SizeM           INTEGER DEFAULT 0,
-    SizeL           INTEGER DEFAULT 0,
-    SizeXL          INTEGER DEFAULT 0,
-    SizeXXL         INTEGER DEFAULT 0,
+        SizeXS INT DEFAULT 0,
+        SizeS INT DEFAULT 0,
+        SizeM INT DEFAULT 0,
+        SizeL INT DEFAULT 0,
+        SizeXL INT DEFAULT 0,
+        SizeXXL INT DEFAULT 0,
 
-    Price           REAL,
-    ImageUrl        TEXT(500),
+        Price DECIMAL(10,2),
+        ImageUrl NVARCHAR(500),
 
-    CreatedAt       DATETIME DEFAULT (datetime('now'))
-);
+        CreatedAt DATETIME DEFAULT GETDATE()
+    );
+END
+GO
 
 -- =========================
 -- SUBSCRIPTION PLANS
 -- =========================
-CREATE TABLE IF NOT EXISTS SubscriptionPlans (
-    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+IF OBJECT_ID('SubscriptionPlans', 'U') IS NULL
+BEGIN
+    CREATE TABLE SubscriptionPlans (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
 
-    PlanName        TEXT(100) NOT NULL,
-    Description     TEXT,
+        PlanName NVARCHAR(100) NOT NULL,
+        Description NVARCHAR(MAX),
 
-    DurationMonths  INTEGER NOT NULL,
-    Price           REAL NOT NULL,
+        DurationMonths INT NOT NULL,
+        Price DECIMAL(10,2) NOT NULL,
 
-    IsActive        INTEGER DEFAULT 1
-);
+        IsActive BIT DEFAULT 1
+    );
+END
+GO
 
 -- =========================
 -- USER SUBSCRIPTIONS
 -- =========================
-CREATE TABLE IF NOT EXISTS UserSubscriptions (
-    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+IF OBJECT_ID('UserSubscriptions', 'U') IS NULL
+BEGIN
+    CREATE TABLE UserSubscriptions (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
 
-    UserId          INTEGER NOT NULL,
-    PlanId          INTEGER NOT NULL,
+        UserId INT NOT NULL,
+        PlanId INT NOT NULL,
 
-    StartDate       DATETIME,
-    EndDate         DATETIME,
+        StartDate DATETIME,
+        EndDate DATETIME,
 
-    Status          TEXT(20) DEFAULT 'Active',
+        Status NVARCHAR(20) DEFAULT 'Active',
 
-    FOREIGN KEY (UserId)
-        REFERENCES Users(Id)
-        ON DELETE CASCADE,
+        CONSTRAINT FK_UserSubscriptions_Users
+            FOREIGN KEY (UserId)
+            REFERENCES Users(Id)
+            ON DELETE CASCADE,
 
-    FOREIGN KEY (PlanId)
-        REFERENCES SubscriptionPlans(Id)
-);
+        CONSTRAINT FK_UserSubscriptions_Plans
+            FOREIGN KEY (PlanId)
+            REFERENCES SubscriptionPlans(Id)
+    );
+END
+GO
 
 -- =========================
 -- CONTACT MESSAGES
 -- =========================
-CREATE TABLE IF NOT EXISTS ContactMessages (
-    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+IF OBJECT_ID('ContactMessages', 'U') IS NULL
+BEGIN
+    CREATE TABLE ContactMessages (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
 
-    UserId          INTEGER,
-    Subject         TEXT(200),
-    Message         TEXT NOT NULL,
+        UserId INT NULL,
+        Subject NVARCHAR(200),
+        Message NVARCHAR(MAX) NOT NULL,
 
-    Status          TEXT(20) DEFAULT 'Pending',
+        Status NVARCHAR(20) DEFAULT 'Pending',
 
-    CreatedAt       DATETIME DEFAULT (datetime('now')),
+        CreatedAt DATETIME DEFAULT GETDATE(),
 
-    FOREIGN KEY (UserId)
-        REFERENCES Users(Id)
-        ON DELETE SET NULL
-);
+        CONSTRAINT FK_ContactMessages_Users
+            FOREIGN KEY (UserId)
+            REFERENCES Users(Id)
+            ON DELETE SET NULL
+    );
+END
+GO
