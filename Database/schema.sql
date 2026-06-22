@@ -1,4 +1,15 @@
 -- =========================
+-- CREATE DATABASE
+-- =========================
+IF DB_ID('vwear') IS NULL
+BEGIN
+    CREATE DATABASE vwear;
+END
+GO
+
+USE vwear;
+GO
+-- =========================
 -- USERS
 -- =========================
 IF OBJECT_ID('Users', 'U') IS NULL
@@ -8,13 +19,12 @@ BEGIN
         Username NVARCHAR(50) UNIQUE NOT NULL,
         Email NVARCHAR(100) UNIQUE NOT NULL,
         PasswordHash NVARCHAR(255) NOT NULL,
-        
-        -- إضافات الباك اند للحماية والصلاحيات
+
         Role NVARCHAR(20) DEFAULT 'User',
         IsVerified INT DEFAULT 0,
         VerificationToken NVARCHAR(255) NULL,
         ResetToken NVARCHAR(255) NULL,
-        
+
         CreatedAt DATETIME DEFAULT GETDATE()
     );
 END
@@ -27,6 +37,7 @@ IF OBJECT_ID('UserImages', 'U') IS NULL
 BEGIN
     CREATE TABLE UserImages (
         Id INT IDENTITY(1,1) PRIMARY KEY,
+
         UserId INT NOT NULL UNIQUE,
 
         FrontImage NVARCHAR(500),
@@ -50,12 +61,35 @@ END
 GO
 
 -- =========================
+-- GENERATED IMAGES
+-- =========================
+IF OBJECT_ID('GeneratedImages', 'U') IS NULL
+BEGIN
+    CREATE TABLE GeneratedImages (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+
+        UserId INT NOT NULL,
+
+        GeneratedImagePath NVARCHAR(500) NOT NULL,
+
+        CreatedAt DATETIME DEFAULT GETDATE(),
+
+        CONSTRAINT FK_GeneratedImages_Users
+            FOREIGN KEY (UserId)
+            REFERENCES Users(Id)
+            ON DELETE CASCADE
+    );
+END
+GO
+
+-- =========================
 -- USER MEASUREMENTS
 -- =========================
 IF OBJECT_ID('Measurements', 'U') IS NULL
 BEGIN
     CREATE TABLE Measurements (
         Id INT IDENTITY(1,1) PRIMARY KEY,
+
         UserId INT NOT NULL,
 
         Height FLOAT,
@@ -178,14 +212,19 @@ BEGIN
     );
 END
 GO
+
 -- =========================
--- BLACKLISTED TOKENS (For Secure Logout)
+-- BLACKLISTED TOKENS
 -- =========================
 IF OBJECT_ID('BlacklistedTokens', 'U') IS NULL
 BEGIN
     CREATE TABLE BlacklistedTokens (
         Id INT IDENTITY(1,1) PRIMARY KEY,
-        Token NVARCHAR(1000) NOT NULL
+
+        Token NVARCHAR(1000) NOT NULL,
+
+        CreatedAt DATETIME DEFAULT GETDATE()
     );
 END
 GO
+```
