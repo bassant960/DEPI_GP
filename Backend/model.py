@@ -1,13 +1,10 @@
-from io import BytesIO
 import os
 import uuid
-import shutil
-from pathlib import Path
-from fastapi import UploadFile
-from gradio_client import Client, handle_file
+import requests
+from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
-import requests
+from gradio_client import Client, handle_file
 
 load_dotenv()
 
@@ -56,32 +53,22 @@ class ModelWrapper:
     def _save_result_image(self, image_path: str) -> str:
         """Save result image, converting RGBA to RGB if needed."""
         try:
-            print(f"📸 Opening result image: {image_path}")
-            
-            # تحميل الصورة إذا كانت URL
             if image_path.startswith('http'):
                 response = requests.get(image_path)
                 img = Image.open(BytesIO(response.content))
             else:
                 img = Image.open(image_path)
             
-            print(f"📸 Image mode: {img.mode}, size: {img.size}")
-            
-            # ⭐ تحويل RGBA لـ RGB مع خلفية بيضاء
             if img.mode == 'RGBA':
-                print("🔄 Converting RGBA to RGB with white background")
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[-1])
                 img = background
             elif img.mode != 'RGB':
-                print(f"🔄 Converting {img.mode} to RGB")
                 img = img.convert('RGB')
             
-            # حفظ كـ JPEG
             filename = f"result_{uuid.uuid4().hex}.jpg"
             final_path = os.path.join(UPLOAD_DIR, filename)
             img.save(final_path, 'JPEG', quality=95)
-            print(f"💾 Saved to: {final_path}")
             
             return f"/uploads/{filename}"
             
@@ -89,39 +76,84 @@ class ModelWrapper:
             print(f"❌ Error saving image: {e}")
             raise
 
+    def _prepare_image_as_png(self, image_path: str) -> str:
+        if not image_path or not os.path.exists(image_path) or image_path.startswith("http"):
+            return image_path
+        
+        try:
+            print(f"🔄 Converting to PNG: {image_path}")
+            with Image.open(image_path) as img:
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new("RGB", img.size, (255, 255, 255))
+                    if img.mode == 'RGBA':
+                        background.paste(img, mask=img.split()[-1])
+                    else:
+                        img = img.convert('RGBA')
+                        background.paste(img, mask=img.split()[-1])
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                new_path = image_path.rsplit('.', 1)[0] + '.png'
+                img.save(new_path, "PNG")
+                
+                if new_path != image_path:
+                    os.remove(image_path)
+                
+                print(f"✅ Saved as PNG: {new_path}")
+                return new_path
+                
+        except Exception as e:
+            print(f"⚠️ Error converting to PNG: {e}")
+            return image_path
+
+    def _create_blank_mask(self, image_path: str) -> str:
+        """⭐ السحر الجديد: إنشاء قناع شفاف بالكامل لإرضاء الموديل وتجنب الـ IndexError"""
+        if not image_path or not os.path.exists(image_path) or image_path.startswith("http"):
+            return None
+            
+        try:
+            with Image.open(image_path) as img:
+                # إنشاء صورة شفافة بالكامل بنفس الحجم
+                blank = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                blank_path = image_path.rsplit('.', 1)[0] + '_mask.png'
+                blank.save(blank_path, "PNG")
+                print(f"✅ Created blank mask: {blank_path}")
+                return blank_path
+        except Exception as e:
+            print(f"⚠️ Error creating blank mask: {e}")
+            return None
+
     async def run(self, person_image_path: str, outfit_url: str) -> dict:
-        """Main inference method."""
+        blank_mask_path = None
         if not self.is_ready:
             raise RuntimeError("Model is not ready. Please check your connection.")
 
         try:
             print("🚀 Starting AI inference...")
             
-            # تسطيح الصور قبل الإرسال
-            self._flatten_image(person_image_path)
+            person_image_path = self._prepare_image_as_png(person_image_path)
+            
+            # 👇 إنشاء الماسك الشفاف الوهمي
+            blank_mask_path = self._create_blank_mask(person_image_path)
             
             if outfit_url and os.path.exists(outfit_url) and not outfit_url.startswith("http"):
-                self._flatten_image(outfit_url)
+                outfit_url = self._prepare_image_as_png(outfit_url)
 
-            # ⭐⭐⭐ الاتصال بالموديل بالطريقة الصحيحة من الـ API docs
-            print(f"🔗 Connecting to model: {self.model_url}")
             if self.api_key:
                 client = Client(self.model_url, token=self.api_key)
             else:
                 client = Client(self.model_url)
             
-            # تجهيز البيانات بالشكل المطلوب
+            # ⭐ هنا الخدعة: وضع الماسك الشفاف في layers عشان الموديل ميضربش IndexError
             person_img_dict = {
                 "background": handle_file(person_image_path),
-                "layers": [],
-                "composite": None
+                "layers": [handle_file(blank_mask_path)] if blank_mask_path else [],
+                "composite": handle_file(person_image_path)
             }
 
             print("📤 Sending request to AI model...")
-            print(f"📤 Person image: {person_image_path}")
-            print(f"📤 Outfit: {outfit_url}")
             
-            # ⭐⭐⭐ الحل: استخدام show_type="result only" عشان ناخد الصورة النهائية فقط
             result = client.predict(
                 person_image=person_img_dict,
                 cloth_image=handle_file(outfit_url),
@@ -129,36 +161,25 @@ class ModelWrapper:
                 num_inference_steps=50,
                 guidance_scale=2.5,
                 seed=42,
-                show_type="result only",  # ⭐ التغيير المهم
+                show_type="result only",  
                 api_name="/submit_function"
             )
 
-            print(f"📥 Result type: {type(result)}")
-            print(f"📥 Result: {result}")
-
-            # ⭐ استخراج مسار الصورة من النتيجة
             result_path = None
-            
             if isinstance(result, dict):
-                # النتيجة dict فيها path أو url
                 result_path = result.get('path') or result.get('url')
-                print(f"📥 Extracted path from dict: {result_path}")
             elif isinstance(result, str):
                 result_path = result
-                print(f"📥 Result is string: {result_path}")
             elif isinstance(result, (list, tuple)) and len(result) > 0:
-                # لو النتيجة list
                 last_item = result[-1]
                 if isinstance(last_item, dict):
                     result_path = last_item.get('path') or last_item.get('url')
                 elif isinstance(last_item, str):
                     result_path = last_item
-                print(f"📥 Extracted from list: {result_path}")
 
             if not result_path:
                 raise RuntimeError(f"Could not extract image path from result: {result}")
 
-            # ⭐ حفظ الصورة الناتجة
             result_url = self._save_result_image(result_path)
             print(f"✅ Final result URL: {result_url}")
             
@@ -171,35 +192,17 @@ class ModelWrapper:
             raise RuntimeError(f"Gradio AI Processing failed: {str(e)}")
 
         finally:
-            # تنظيف الملفات المؤقتة
+            # تنظيف الملفات المؤقتة بما فيها الماسك الوهمي
             if os.path.exists(person_image_path):
                 try:
                     os.remove(person_image_path)
-                    print(f"🗑️ Cleaned up: {person_image_path}")
                 except:
                     pass
-
-    def _flatten_image(self, image_path: str):
-        """تسطيح الصورة وإزالة الشفافية"""
-        if not image_path or not os.path.exists(image_path) or image_path.startswith("http"):
-            return
-        
-        try:
-            print(f"🔄 Flattening image: {image_path}")
-            with Image.open(image_path) as img:
-                original_mode = img.mode
-                if img.mode in ('RGBA', 'LA', 'P'):
-                    if img.mode == 'RGBA':
-                        background = Image.new("RGB", img.size, (255, 255, 255))
-                        background.paste(img, mask=img.split()[-1])
-                        img = background
-                    else:
-                        img = img.convert('RGB')
-                    
-                    img.save(image_path, "JPEG", quality=95)
-                    print(f"✅ Flattened {image_path} from {original_mode} to RGB")
-        except Exception as e:
-            print(f"⚠️ Could not flatten {image_path}: {e}")
+            if blank_mask_path and os.path.exists(blank_mask_path):
+                try:
+                    os.remove(blank_mask_path)
+                except:
+                    pass
 
 # ============================================================
 # Singleton
