@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VWear | Graduation Project</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#f5f3ff', 100: '#ede9fe', 500: '#8b5cf6', 600: '#7c3aed', 900: '#4c1d95' },
+                        accent: { 500: '#ec4899', 600: '#db2777' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Floating animations - Same as your original structure */
+        .float-1 {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .float-2 {
+            animation: float 7s ease-in-out infinite reverse;
+        }
+
+        .float-3 {
+            animation: float 8s ease-in-out infinite 1s;
+        }
+
+        .float-4 {
+            animation: float 6.5s ease-in-out infinite 2s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-20px) rotate(3deg);
+            }
+
+            100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+        }
+
+        .bg-mesh {
+            background-color: #faf5ff;
+            background-image: radial-gradient(at 10% 10%, rgba(139, 92, 246, 0.2) 0px, transparent 50%),
+                radial-gradient(at 90% 10%, rgba(236, 72, 153, 0.2) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(59, 130, 246, 0.15) 0px, transparent 50%);
+            background-attachment: fixed;
+            background-size: cover;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .selected-outfit {
+            outline: 4px solid #7c3aed;
+            transform: scale(0.98);
+            border-radius: 1rem;
+        }
+    </style>
+</head>
+
+<body class="font-sans text-gray-800 bg-mesh antialiased relative">
+
+    <nav class="fixed w-full bg-white/70 backdrop-blur-lg z-50 border-b border-white/50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div onclick="showSection('main-content')" class="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                        V</div>
+                    <span class="font-bold text-2xl tracking-tight text-gray-900">V<span
+                            class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-accent-500">Wear</span></span>
+                </div>
+
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="#home" class="nav-link text-brand-600 font-bold">Home</a>
+                    <a href="#how-it-works" class="nav-link text-gray-600 hover:text-brand-600 font-semibold">How it
+                        Works</a>
+                    <a href="#contact" class="nav-link text-gray-600 hover:text-brand-600 font-semibold">Contact Us</a>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <div onclick="showSection('profile-section')"
+                        class="flex items-center gap-2 cursor-pointer group bg-white/50 px-3 py-1.5 rounded-full border border-white/80 hover:bg-white transition-all">
+                        <span id="nav-user-name" class="font-bold text-sm text-gray-700">My Profile</span>
+                        <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold"
+                            id="nav-avatar">U</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="main-content">
+        <section id="home"
+            class="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden min-h-screen flex items-center">
+            <div
+                class="hidden lg:block absolute top-32 left-10 w-32 h-32 rounded-2xl overflow-hidden shadow-2xl float-1 border-4 border-white/80 z-0">
+                <img src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=300&q=80"
+                    class="w-full h-full object-cover">
+            </div>
+            <div
+                class="hidden lg:block absolute bottom-20 left-32 w-40 h-40 rounded-full overflow-hidden shadow-2xl float-2 border-4 border-white/80 z-0">
+                <img src="https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=300&q=80"
+                    class="w-full h-full object-cover">
+            </div>
+
+            <div class="max-w-7xl mx-auto px-4 text-center relative z-10">
+                <div
+                    class="inline-block px-5 py-2 rounded-full bg-white/70 border border-white/60 text-brand-700 font-bold text-sm mb-8 shadow-sm">
+                    ✨ VWear - Next Gen Fashion</div>
+                <h1 class="text-4xl md:text-7xl font-extrabold text-gray-900 leading-tight mb-8">Try clothes on before
+                    buying <br> <span
+                        class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-accent-500">with AI
+                        Technology</span></h1>
+                <p class="text-lg md:text-2xl text-gray-700 mb-10 max-w-2xl mx-auto leading-relaxed font-medium">Find
+                    your perfect fit with a single click.</p>
+                <button onclick="document.getElementById('how-it-works').scrollIntoView({behavior: 'smooth'})"
+                    class="bg-gradient-to-r from-brand-600 to-accent-500 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg">Try
+                    it Now</button>
+            </div>
+        </section>
+
+        <section id="how-it-works" class="py-24 px-4">
+            <div class="max-w-7xl mx-auto">
+                <h2 class="text-center text-3xl md:text-4xl font-bold mb-16">How Does It Work?</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                    <div class="glass-card rounded-3xl p-8 text-center cursor-pointer"
+                        onclick="document.getElementById('fileInput').click()">
+                        <div id="preview-box"
+                            class="w-full h-48 bg-white/50 rounded-2xl mb-6 border-2 border-dashed border-brand-300 flex items-center justify-center overflow-hidden">
+                            <span class="text-brand-700 font-bold">Click to Upload Photo</span>
+                        </div>
+                        <h3 class="text-xl font-bold">1. Upload Your Photo</h3>
+                        <input type="file" id="fileInput" class="hidden" accept="image/*">
+                    </div>
+                    <div class="glass-card rounded-3xl p-8 text-center">
+                        <div class="grid grid-cols-2 gap-2 h-48 overflow-y-auto" id="outfit-catalog">
+                            <img src="https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=300&q=80"
+                                class="outfit-item h-full w-full object-cover rounded-xl cursor-pointer transition-all"
+                                onclick="selectOutfit(this)">
+                            <img src="https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=300&q=80"
+                                class="outfit-item h-full w-full object-cover rounded-xl cursor-pointer transition-all"
+                                onclick="selectOutfit(this)">
+                        </div>
+                        <h3 class="text-xl font-bold mt-6">2. Choose the Outfit</h3>
+                    </div>
+                    <div class="glass-card rounded-3xl p-8 text-center">
+                        <div id="result-box"
+                            class="w-full h-48 bg-gray-100 rounded-2xl mb-6 flex items-center justify-center text-gray-400">
+                            Result will appear here</div>
+                        <h3 class="text-xl font-bold">3. See the Result!</h3>
+                    </div>
+                </div>
+                <div class="text-center mt-12">
+                    <button id="generateBtn"
+                        class="bg-brand-600 text-white px-10 py-4 rounded-full font-bold shadow-xl">Generate Virtual
+                        Try-On</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="py-24 px-4">
+            <div class="max-w-4xl mx-auto glass-card rounded-[40px] p-10 md:p-14 text-center shadow-2xl">
+                <h2 class="text-3xl font-bold mb-4">Have a Question? Contact Us</h2>
+                <p class="text-gray-600 mb-10">Our team is ready to answer all your questions.</p>
+                <form class="space-y-6 text-left">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <input type="text" id="contact-name" placeholder="Full Name"
+                            class="w-full px-6 py-4 rounded-2xl bg-white/60 border border-gray-100 focus:ring-2 focus:ring-brand-500 outline-none transition-all">
+                        <input type="email" id="contact-email" placeholder="Email Address"
+                            class="w-full px-6 py-4 rounded-2xl bg-white/60 border border-gray-100 focus:ring-2 focus:ring-brand-500 outline-none transition-all">
+                    </div>
+                    <textarea placeholder="Message" rows="4"
+                        class="w-full px-6 py-4 rounded-2xl bg-white/60 border border-gray-100 focus:ring-2 focus:ring-brand-500 outline-none transition-all"></textarea>
+                    <button type="button"
+                        class="w-full bg-gradient-to-r from-brand-600 to-accent-500 text-white py-5 rounded-2xl font-extrabold text-lg shadow-lg">Send
+                        Message</button>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <section id="profile-section" class="pt-32 pb-20 px-4 min-h-screen" style="display: none;">
+        <div class="max-w-4xl mx-auto">
+            <div class="glass-card rounded-3xl p-10">
+                <div class="flex flex-col md:flex-row items-center gap-8 mb-12 border-b pb-8 border-gray-100">
+                    <div id="profile-avatar"
+                        class="w-32 h-32 rounded-full bg-brand-600 flex items-center justify-center text-white text-5xl font-bold border-4 border-white shadow-xl">
+                        U</div>
+                    <div class="text-center md:text-left">
+                        <h2 id="profile-name" class="text-3xl font-bold text-gray-900">User Name</h2>
+                        <p id="profile-email" class="text-gray-500 text-lg">user@example.com</p>
+                        <button onclick="logout()" class="mt-4 text-red-500 font-bold hover:underline">Logout from
+                            Account</button>
+                    </div>
+                </div>
+                <h3 class="text-xl font-bold mb-6">Recent Try-Ons History</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" id="history-grid">
+                    <div
+                        class="aspect-square bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 text-xs">
+                        No History Yet</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-white/40 border-t py-10 text-center">
+        <p class="font-medium text-gray-700">© 2026 All rights reserved for VWear-Team.</p>
+    </footer>
+
+    <script>
+
+        // page token
+        const token = localStorage.getItem("token");
+
+        if (!token) {
+
+            window.location.href = "login.html";
+        }
+
+        // --- 1. switching between pages---
+        function showSection(id) {
+            document.getElementById('main-content').style.display = (id === 'main-content') ? 'block' : 'none';
+            document.getElementById('profile-section').style.display = (id === 'profile-section') ? 'block' : 'none';
+            if (id === 'profile-section') updateProfileUI();
+            window.scrollTo(0, 0);
+        }
+
+        // --- 2. Auromatically retrieve and display data---
+        function updateProfileUI() {
+
+            const savedName = localStorage.getItem('vwear_name') || "VWear User";
+
+            const savedEmail = localStorage.getItem('vwear_email') || "user@vwear.com";
+
+            document.getElementById('profile-name').innerText = savedName;
+
+            document.getElementById('profile-email').innerText = savedEmail;
+
+            document.getElementById('nav-user-name').innerText = savedName;
+
+            document.getElementById('profile-avatar').innerText = savedName.charAt(0).toUpperCase();
+
+            document.getElementById('nav-avatar').innerText = savedName.charAt(0).toUpperCase();
+
+            document.getElementById('contact-name').value = savedName;
+
+            document.getElementById('contact-email').value = savedEmail;
+        }
+
+        // --- 3. Activating interactive functions---
+        let selectedFile = null;
+
+        let selectedOutfitUrl = null;
+
+        document.getElementById('fileInput').onchange = (e) => {
+
+            selectedFile = e.target.files[0];
+
+            if (selectedFile) {
+
+                const reader = new FileReader();
+
+                reader.onload = (f) =>
+                    document.getElementById('preview-box').innerHTML =
+                    `<img src="${f.target.result}" class="w-full h-full object-cover">`;
+
+                reader.readAsDataURL(selectedFile);
+            }
+        };
+
+        function selectOutfit(imgElement) {
+
+            document.querySelectorAll('.outfit-item')
+                .forEach(img => img.classList.remove('selected-outfit'));
+
+            imgElement.classList.add('selected-outfit');
+
+            selectedOutfitUrl = imgElement.src;
+        }
+
+        document.getElementById('generateBtn').onclick = () => {
+
+            if (!selectedFile || !selectedOutfitUrl)
+                return alert("Please upload photo & select outfit!");
+
+            const btn = document.getElementById('generateBtn');
+
+            btn.innerText = "Processing AI Magic...";
+
+            setTimeout(() => {
+
+                document.getElementById('result-box').innerHTML =
+                    `<img src="${selectedOutfitUrl}" class="w-full h-full object-cover rounded-xl animate-pulse">`;
+
+                btn.innerText = "Generate Virtual Try-On";
+
+            }, 3000);
+        };
+
+        function logout() {
+
+            localStorage.clear();
+
+            window.location.href = "login.html";
+        }
+
+        document.addEventListener('DOMContentLoaded', updateProfileUI);
+
+    </script>
+</body>
+
+</html>

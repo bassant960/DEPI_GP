@@ -1,0 +1,12 @@
+Backend/.env
+
+__pycache__/
+*.pyc
+**/__pycache__/
+
+Backend/vwear.db
+
+# تجاهل المجلدات الافتراضية للـ البيئة الافتراضية لو حد عملها جوه المشروع
+venv/
+.venv/
+env/
