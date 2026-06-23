@@ -85,5 +85,4 @@ def save_generated_image(
             image_bytes
         )
 
-    return filepath
-    
+    return f"/uploads/users/{filename}"
