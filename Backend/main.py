@@ -21,15 +21,15 @@ from model import model
 from job_queue import job_queue
 from dotenv import load_dotenv
 import os
-
+from fastapi import BackgroundTasks 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 dotenv_path = os.path.join(base_dir, ".env")
 
 load_dotenv(dotenv_path)
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_FILE = "vwear.db"
-SQLALCHEMY_DATABASE_URL = f"sqlite:///./{DATABASE_FILE}"
-
+DATABASE_PATH = os.path.join(BASE_DIR, DATABASE_FILE)
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False}
@@ -62,7 +62,7 @@ user_images_table = Table(
     Column('LeftImage', String(500), nullable=True),
     Column('RightImage', String(500), nullable=True),
     Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)))
-)
+
 blacklist_table = Table(
     'BlacklistedTokens', metadata,
     Column('Id', Integer, primary_key=True, autoincrement=True),
@@ -197,7 +197,7 @@ def create_access_token(email: str):
     payload = {
         "sub": email,
         "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)    }
-    }
+    
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def verify_token(
@@ -669,24 +669,50 @@ def home():
 # ============================================================
 # 12. Virtual Try-On Endpoints (AI Integration)
 # ============================================================
-
 @app.post("/generate-tryon")
 async def generate_tryon(
+    background_tasks: BackgroundTasks,
     person_image: UploadFile = File(...),
-    outfit_url: str = Form(...),
+    outfit_url: Optional[str] = Form(None), # خليناه اختياري
+    outfit_file: Optional[UploadFile] = File(None), # ضيفنا إمكانية استقبال ملف اللبس
     user_data=Depends(verify_token)
 ):
     email = user_data.get("sub")
-    job = await job_queue.add_job(user_email=email, outfit_url=outfit_url)
-    completed_job = await job_queue.process_job(
-        job_id=job.id,
-        person_image=person_image,
-        model=model
-    )
-    if completed_job.status == "failed":
-        raise HTTPException(status_code=500, detail=completed_job.error)
-    return {"result_url": completed_job.result_url, "job_id": completed_job.id}
 
+    # 1. حفظ صورة الشخص مؤقتاً
+    ext = os.path.splitext(person_image.filename)[1] if person_image.filename else ".jpg"
+    filename = f"temp_{uuid.uuid4().hex}{ext}"
+    local_path = os.path.join("uploads", filename)
+
+    with open(local_path, "wb") as buffer:
+        import shutil
+        shutil.copyfileobj(person_image.file, buffer)
+
+    # 2. التعامل مع اللبس: هل هو ملف مرفوع أم لينك جاهز؟
+    final_outfit_path_or_url = outfit_url
+
+    if outfit_file and outfit_file.filename:
+        # لو اليوزر رفع ملف من جهازه، بنحفظه في فولدر uploads فوراً
+        outfit_ext = os.path.splitext(outfit_file.filename)[1]
+        outfit_filename = f"outfit_{uuid.uuid4().hex}{outfit_ext}"
+        local_outfit_path = os.path.join("uploads", outfit_filename)
+
+        with open(local_outfit_path, "wb") as buffer:
+            shutil.copyfileobj(outfit_file.file, buffer)
+        
+        # بنخلي الـ Queue يتعامل مع مسار الملف المحلي كأنه هو الـ url
+        final_outfit_path_or_url = local_outfit_path
+
+    if not final_outfit_path_or_url:
+        raise HTTPException(status_code=400, detail="Please select an outfit or upload one!")
+
+    # 3. نضيف المهمة للـ Queue بالمسار المحدث
+    job = await job_queue.add_job(user_email=email, outfit_url=final_outfit_path_or_url)
+
+    # 4. نبعت المهمة تشتغل في الخلفية
+    background_tasks.add_task(job_queue.process_job, job.id, local_path, model)
+
+    return {"message": "Job is processing", "job_id": job.id}
 
 @app.get("/queue/stats")
 def queue_stats(user_data=Depends(verify_token)):

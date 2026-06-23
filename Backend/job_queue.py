@@ -121,7 +121,7 @@ class ProcessingQueue:
 
     # ── Run a job through the model ────────────────────────
 
-    async def process_job(self, job_id: str, person_image, model) -> Job:
+    async def process_job(self, job_id: str, person_image_path: str, model) -> Job:
         """
         Runs a queued job through the AI model.
 
@@ -141,7 +141,7 @@ class ProcessingQueue:
 
         try:
             result = await model.run(
-                person_image=person_image,
+                person_image_path=person_image_path, 
                 outfit_url=job.outfit_url
             )
             await self._mark_done(job_id, result["result_url"])
