@@ -50,7 +50,7 @@ users_table = Table(
     Column('IsVerified', Integer, default=0),
     Column('VerificationToken', String(255), nullable=True),
     Column('ResetToken', String(255), nullable=True),
-    Column('CreatedAt', DateTime, default=datetime.datetime.utcnow)
+    Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 )
 
 user_images_table = Table(
@@ -61,7 +61,7 @@ user_images_table = Table(
     Column('BackImage', String(500), nullable=True),
     Column('LeftImage', String(500), nullable=True),
     Column('RightImage', String(500), nullable=True),
-    Column('CreatedAt', DateTime, default=datetime.datetime.utcnow)
+    Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)))
 )
 blacklist_table = Table(
     'BlacklistedTokens', metadata,
@@ -196,7 +196,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(email: str):
     payload = {
         "sub": email,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)    }
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
