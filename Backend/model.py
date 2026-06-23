@@ -12,8 +12,8 @@ from PIL import Image
 # ============================================================
 
 # تأكد أن في ملف الـ .env الـ MODEL_API_URL قيمتها هي: zhengchong/CatVTON
-MODEL_API_URL = os.getenv("MODEL_API_URL", "zhengchong/CatVTON")
-MODEL_API_KEY = os.getenv("MODEL_API_KEY", "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")   # هنا هيكون الـ HuggingFace token بتاعك
+MODEL_API_URL = os.getenv("MODEL_API_URL")
+MODEL_API_KEY = os.getenv("MODEL_API_KEY")   # هنا هيكون الـ HuggingFace token بتاعك
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
