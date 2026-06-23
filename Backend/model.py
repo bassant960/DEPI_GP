@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 import uuid
 import shutil
@@ -5,19 +6,17 @@ from pathlib import Path
 from fastapi import UploadFile
 from gradio_client import Client, handle_file
 from PIL import Image
+from dotenv import load_dotenv
+import requests
 
+load_dotenv()
 
 # ============================================================
 # Model Configuration
 # ============================================================
 
-# تأكد أن في ملف الـ .env الـ MODEL_API_URL قيمتها هي: zhengchong/CatVTON
-MODEL_API_URL = os.getenv("MODEL_API_URL")
-MODEL_API_KEY = os.getenv("MODEL_API_KEY")   # هنا هيكون الـ HuggingFace token بتاعك
-
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 
 # ============================================================
 # Model Wrapper Class
@@ -26,88 +25,103 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 class ModelWrapper:
     """
     Wraps the virtual try-on AI model.
-    Handles image preparation, Gradio Space API call, and result saving.
     """
 
     def __init__(self):
-        self.model_url  = MODEL_API_URL
-        self.api_key    = MODEL_API_KEY
+        self.api_key = os.getenv("MODEL_API_KEY") or None
+        self.model_url = os.getenv("MODEL_API_URL", "zhengchong/CatVTON")
         self.model_name = "CatVTON via Gradio"
-        self.is_ready   = bool(self.model_url)
+        
+        # محاولة الاتصال
+        self.is_ready = False
+        try:
+            if self.api_key:
+                test_client = Client(self.model_url, token=self.api_key)
+            else:
+                test_client = Client(self.model_url)
+            self.is_ready = True
+            print(f"✅ Connected to {self.model_url}")
+        except Exception as e:
+            print(f"❌ Failed to connect: {e}")
+            self.is_ready = False
 
     def status(self) -> dict:
-        """Returns current model status info."""
         return {
-            "model":   self.model_name,
-            "ready":   self.is_ready,
+            "model": self.model_name,
+            "ready": self.is_ready,
             "api_url": self.model_url,
+            "has_token": bool(self.api_key),
         }
 
-    def _save_upload(self, file: UploadFile) -> str:
-        """Saves an uploaded file to disk and returns its local path."""
-        ext      = Path(file.filename).suffix or ".jpg"
-        filename = f"{uuid.uuid4().hex}{ext}"
-        filepath = os.path.join(UPLOAD_DIR, filename)
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        return filepath
-
-    def _save_result_from_path(self, temp_path: str) -> str:
-        """Takes the temporary output path from Gradio, moves it to our uploads directory."""
-        if not os.path.exists(temp_path):
-            raise FileNotFoundError(f"Result image not found at {temp_path}")
+    def _save_result_image(self, image_path: str) -> str:
+        """Save result image, converting RGBA to RGB if needed."""
+        try:
+            print(f"📸 Opening result image: {image_path}")
             
-        ext = Path(temp_path).suffix or ".png"
-        filename = f"result_{uuid.uuid4().hex}{ext}"
-        final_path = os.path.join(UPLOAD_DIR, filename)
-        
-        # نقل الملف من المجلد المؤقت الخاص بـ Gradio إلى مجلد uploads الخاص بمشروعنا
-        shutil.move(temp_path, final_path)
-        return f"/uploads/{filename}"
-    async def run(self, person_image_path: str, outfit_url: str) -> dict:
-        """
-        Main inference method.
-        Sends person image + outfit URL to the Hugging Face Space using Gradio Client.
-        Returns the result image URL.
-        """
-        if not self.is_ready:
-            raise RuntimeError("Model is not ready. Please try again later.")
+            # تحميل الصورة إذا كانت URL
+            if image_path.startswith('http'):
+                response = requests.get(image_path)
+                img = Image.open(BytesIO(response.content))
+            else:
+                img = Image.open(image_path)
+            
+            print(f"📸 Image mode: {img.mode}, size: {img.size}")
+            
+            # ⭐ تحويل RGBA لـ RGB مع خلفية بيضاء
+            if img.mode == 'RGBA':
+                print("🔄 Converting RGBA to RGB with white background")
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[-1])
+                img = background
+            elif img.mode != 'RGB':
+                print(f"🔄 Converting {img.mode} to RGB")
+                img = img.convert('RGB')
+            
+            # حفظ كـ JPEG
+            filename = f"result_{uuid.uuid4().hex}.jpg"
+            final_path = os.path.join(UPLOAD_DIR, filename)
+            img.save(final_path, 'JPEG', quality=95)
+            print(f"💾 Saved to: {final_path}")
+            
+            return f"/uploads/{filename}"
+            
+        except Exception as e:
+            print(f"❌ Error saving image: {e}")
+            raise
 
-        # دالة داخلية لتسطيح أي صورة وإزالة قنوات الشفافية (RGBA/LA) وتحويلها لـ RGB بيكسل صلب
-        # تسطيح الصورة المحلية فقط وإزالة قنوات الشفافية (RGBA)
-        def flatten_local_image(image_path):
-            # نتأكد أنه مسار ملف محلي وليس رابط URL من الإنترنت
-            if image_path and os.path.exists(image_path) and not image_path.startswith("http"):
-                try:
-                    with Image.open(image_path) as img:
-                        if img.mode in ('RGBA', 'LA'):
-                            background = Image.new("RGB", img.size, (255, 255, 255))
-                            if img.mode == 'RGBA':
-                                background.paste(img, mask=img.split()[-1])
-                            else:
-                                background.paste(img, mask=img.split()[-1])
-                            background.save(image_path, "JPEG")
-                        elif img.mode != 'RGB':
-                            img.convert('RGB').save(image_path, "JPEG")
-                except Exception as e:
-                    print(f"⚠️ Could not flatten image {image_path}: {e}")
+    async def run(self, person_image_path: str, outfit_url: str) -> dict:
+        """Main inference method."""
+        if not self.is_ready:
+            raise RuntimeError("Model is not ready. Please check your connection.")
 
         try:
-            # 1. تسطيح صورة الشخص وصورة اللبس قبل إرسالهما للموديل
-            flatten_local_image(person_image_path)
-            flatten_local_image(outfit_url)
-
-            # 2. الاتصال بـ Hugging Face Space عبر Gradio Client
-            client = Client(self.model_url, token=self.api_key)
+            print("🚀 Starting AI inference...")
             
-            # 3. تجهيز القاموس بالصيغة الدقيقة لـ CatVTON
+            # تسطيح الصور قبل الإرسال
+            self._flatten_image(person_image_path)
+            
+            if outfit_url and os.path.exists(outfit_url) and not outfit_url.startswith("http"):
+                self._flatten_image(outfit_url)
+
+            # ⭐⭐⭐ الاتصال بالموديل بالطريقة الصحيحة من الـ API docs
+            print(f"🔗 Connecting to model: {self.model_url}")
+            if self.api_key:
+                client = Client(self.model_url, token=self.api_key)
+            else:
+                client = Client(self.model_url)
+            
+            # تجهيز البيانات بالشكل المطلوب
             person_img_dict = {
                 "background": handle_file(person_image_path),
                 "layers": [],
                 "composite": None
             }
 
-            # 4. إرسال البيانات بالصيغة المعتمدة لـ CatVTON
+            print("📤 Sending request to AI model...")
+            print(f"📤 Person image: {person_image_path}")
+            print(f"📤 Outfit: {outfit_url}")
+            
+            # ⭐⭐⭐ الحل: استخدام show_type="result only" عشان ناخد الصورة النهائية فقط
             result = client.predict(
                 person_image=person_img_dict,
                 cloth_image=handle_file(outfit_url),
@@ -115,42 +129,80 @@ class ModelWrapper:
                 num_inference_steps=50,
                 guidance_scale=2.5,
                 seed=42,
-                show_type="input & mask & result",
+                show_type="result only",  # ⭐ التغيير المهم
                 api_name="/submit_function"
             )
 
-            print("=== GRADIO RAW OUTPUT ===", result)
+            print(f"📥 Result type: {type(result)}")
+            print(f"📥 Result: {result}")
 
-            # استخراج النتيجة (الصورة الناتجة تكون عادة في العنصر الأخير أو محددة بمسار)
-            result_image_path = None
-            if isinstance(result, (list, tuple)) and len(result) > 0:
-                target_item = result[-1]
-                if isinstance(target_item, dict):
-                    result_image_path = target_item.get("path") or target_item.get("url")
-                elif isinstance(target_item, str):
-                    result_image_path = target_item
+            # ⭐ استخراج مسار الصورة من النتيجة
+            result_path = None
             
-            if not result_image_path:
-                result_image_path = result[0] if isinstance(result, (list, tuple)) else result
+            if isinstance(result, dict):
+                # النتيجة dict فيها path أو url
+                result_path = result.get('path') or result.get('url')
+                print(f"📥 Extracted path from dict: {result_path}")
+            elif isinstance(result, str):
+                result_path = result
+                print(f"📥 Result is string: {result_path}")
+            elif isinstance(result, (list, tuple)) and len(result) > 0:
+                # لو النتيجة list
+                last_item = result[-1]
+                if isinstance(last_item, dict):
+                    result_path = last_item.get('path') or last_item.get('url')
+                elif isinstance(last_item, str):
+                    result_path = last_item
+                print(f"📥 Extracted from list: {result_path}")
 
-            if isinstance(result_image_path, dict):
-                result_image_path = result_image_path.get("path") or result_image_path.get("url")
+            if not result_path:
+                raise RuntimeError(f"Could not extract image path from result: {result}")
 
-            print("=== EXTRACTED IMAGE PATH ===", result_image_path)
-
-            # حفظ النتيجة في مجلد المشروع وإرجاع الـ URL للفرونت اند
-            result_url = self._save_result_from_path(result_image_path)
+            # ⭐ حفظ الصورة الناتجة
+            result_url = self._save_result_image(result_path)
+            print(f"✅ Final result URL: {result_url}")
+            
             return {"result_url": result_url}
 
         except Exception as e:
+            print(f"❌ AI Processing failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise RuntimeError(f"Gradio AI Processing failed: {str(e)}")
 
         finally:
-            # Clean up the temporary person image
+            # تنظيف الملفات المؤقتة
             if os.path.exists(person_image_path):
-                os.remove(person_image_path)
+                try:
+                    os.remove(person_image_path)
+                    print(f"🗑️ Cleaned up: {person_image_path}")
+                except:
+                    pass
+
+    def _flatten_image(self, image_path: str):
+        """تسطيح الصورة وإزالة الشفافية"""
+        if not image_path or not os.path.exists(image_path) or image_path.startswith("http"):
+            return
+        
+        try:
+            print(f"🔄 Flattening image: {image_path}")
+            with Image.open(image_path) as img:
+                original_mode = img.mode
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    if img.mode == 'RGBA':
+                        background = Image.new("RGB", img.size, (255, 255, 255))
+                        background.paste(img, mask=img.split()[-1])
+                        img = background
+                    else:
+                        img = img.convert('RGB')
+                    
+                    img.save(image_path, "JPEG", quality=95)
+                    print(f"✅ Flattened {image_path} from {original_mode} to RGB")
+        except Exception as e:
+            print(f"⚠️ Could not flatten {image_path}: {e}")
+
 # ============================================================
-# Singleton instance — import this in main.py
+# Singleton
 # ============================================================
 
 model = ModelWrapper()
