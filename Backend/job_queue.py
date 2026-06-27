@@ -25,6 +25,7 @@ class Job(BaseModel):
     id:          str
     user_email:  str
     outfit_url:  str
+    cloth_type:  str             = "upper"
     status:      JobStatus       = JobStatus.QUEUED
     result_url:  Optional[str]   = None
     error:       Optional[str]   = None
@@ -51,13 +52,14 @@ class ProcessingQueue:
 
     # ── Add a new job ──────────────────────────────────────
 
-    async def add_job(self, user_email: str, outfit_url: str) -> Job:
+    async def add_job(self, user_email: str, outfit_url: str, cloth_type: str = "upper") -> Job:
         """Creates a new job and adds it to the queue."""
         async with self._lock:
             job = Job(
                 id          = uuid.uuid4().hex,
                 user_email  = user_email,
                 outfit_url  = outfit_url,
+                cloth_type  = cloth_type,
                 status      = JobStatus.QUEUED,
                 created_at  = datetime.datetime.utcnow(),
                 updated_at  = datetime.datetime.utcnow(),
@@ -142,7 +144,8 @@ class ProcessingQueue:
         try:
             result = await model.run(
                 person_image_path=person_image_path, 
-                outfit_url=job.outfit_url
+                outfit_url=job.outfit_url,
+                cloth_type=job.cloth_type
             )
             await self._mark_done(job_id, result["result_url"])
 

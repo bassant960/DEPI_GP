@@ -64,7 +64,8 @@ class ModelWrapper:
         return (os.path.basename(path_or_url), data, ct)
     # ── الدالة الرئيسية ───────────────────────────────────
 
-    async def run(self, person_image_path: str, outfit_url: str) -> dict:
+    # تعديل السطر ده عشان يستقبل cloth_type
+    async def run(self, person_image_path: str, outfit_url: str, cloth_type: str = "upper") -> dict:
         """
         يبعت الصورتين للـ Colab ويحفظ النتيجة لوكال.
         يرجع {"result_url": "/uploads/result_xxx.jpg"}
@@ -74,15 +75,20 @@ class ModelWrapper:
         try:
             person_data = await self._read_file(person_image_path)
             cloth_data  = await self._read_file(outfit_url)
-
+            
             files = {
-                "person_image": person_data,   # (name, bytes, content_type)
+                "person_image": person_data,   
                 "cloth_image":  cloth_data,
             }
+            
+            # 🔥 السطر الجديد: إضافة الـ cloth_type للبيانات المرسلة
+            data_payload = {
+                "cloth_type": cloth_type
+            }
 
-            # Timeout 180s — الموديل بياخد وقت
             async with httpx.AsyncClient(timeout=180.0) as client:
-                resp = await client.post(self.tryon_url, files=files)
+                # 🔥 تعديل الـ post عشان يبعت الـ data
+                resp = await client.post(self.tryon_url, files=files, data=data_payload)
 
             if resp.status_code != 200:
                 raise RuntimeError(

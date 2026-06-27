@@ -2,7 +2,9 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, select
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import Text, create_engine, MetaData, Table, Column, Integer, String, DateTime, select
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import jwt, JWTError
@@ -51,6 +53,7 @@ users_table = Table(
     Column('IsVerified', Integer, default=0),
     Column('VerificationToken', String(255), nullable=True),
     Column('ResetToken', String(255), nullable=True),
+    Column("ResetTokenExpire",DateTime, nullable=True),
     Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 )
 
@@ -63,6 +66,18 @@ user_images_table = Table(
     Column('LeftImage', String(500), nullable=True),
     Column('RightImage', String(500), nullable=True),
     Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)))
+
+contact_messages_table = Table(
+    "ContactMessages",metadata,
+
+    Column("Id", Integer, primary_key=True, autoincrement=True),
+    Column("Name", String(100)),
+    Column("Email", String(100)),
+    Column("Subject", String(200)),
+    Column("Message", Text),
+
+    Column("CreatedAt",DateTime,default=datetime.datetime.utcnow)
+)
 
 blacklist_table = Table(
     'BlacklistedTokens', metadata,
@@ -77,6 +92,17 @@ metadata.create_all(bind=engine)
 SECRET_KEY = "vwear_super_secret_key_2026_backend_project"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
+REMEMBER_ME_DAYS = 30
+conf = ConnectionConfig(
+    MAIL_USERNAME="vwear.authentication@gmail.com",
+    MAIL_PASSWORD="123456vwear",
+    MAIL_FROM="vwear.authentication@gmail.com",
+    MAIL_PORT=587,
+    MAIL_SERVER="smtp.gmail.com",
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
+    USE_CREDENTIALS=True
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -91,7 +117,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # 5. FastAPI App
 # ============================================================
 app = FastAPI(title="VWear Backend API")
-
+# التعديل السحري: ضفنا ".." عشان نطلع برا فولدر Backend ونروح لـ Front-end
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "..", "Front-end")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
@@ -114,6 +141,7 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    remember_me: bool = False
 
 class ProfileUpdate(BaseModel):
     username: Optional[str] = None
@@ -145,6 +173,12 @@ class UserImagesResponse(BaseModel):
     back_image: Optional[str]
     left_image: Optional[str]
     right_image: Optional[str]
+
+class ContactMessage(BaseModel):
+    name: str
+    email: EmailStr
+    subject: str
+    message: str
 
 # ============================================================
 # 7. Helper Functions
@@ -194,10 +228,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
     
 
-def create_access_token(email: str):
+def create_access_token(email: str,remember_me: bool = False):
+    if remember_me:
+        expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=REMEMBER_ME_DAYS)
+    else:
+        expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     payload = {
         "sub": email,
-        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)    }
+        "exp": expire
+    }
     
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -373,8 +412,8 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
             detail="Please verify your email first"
         )
 
-    token = create_access_token(db_user.Email)
-    return {"message": "Login successful", "token": token, "username": db_user.Username}
+    token = create_access_token(db_user.Email, remember_me=user.remember_me)
+    return {"message": "Login successful", "token": token, "username": db_user.Username, "remember_me": user.remember_me}
 
 
 @app.post("/logout")
@@ -413,14 +452,22 @@ def forgot_password(
 
     token = uuid.uuid4().hex
 
-    db.execute(
-        users_table.update()
-        .where(users_table.c.Email == data.email)
-        .values(ResetToken=token)
+    expire_time = (
+     datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(minutes=15)
     )
+
+    db.execute(
+    users_table.update()
+    .where(users_table.c.Email == data.email)
+    .values(
+        ResetToken=token,
+        ResetTokenExpire=expire_time
+    )
+ )
     db.commit()
 
-    reset_link = f"http://127.0.0.1:8000/reset-password?token={token}"
+    reset_link = reset_link = f"http://127.0.0.1:8000/static/reset_password.html?token={token}"
     email_body = f"""
     <h3>VWear Password Reset</h3>
     <p>You requested to reset your password. Please click the link below to set a new password:</p>
@@ -432,7 +479,6 @@ def forgot_password(
     return {
         "message": "Password reset link has been sent to your email successfully."
     }
-
 @app.post("/reset-password")
 def reset_password(
     data: ResetPassword,
@@ -445,15 +491,21 @@ def reset_password(
     ).fetchone()
 
     if not user:
-        raise HTTPException(400, "Invalid token")
+        raise HTTPException(status_code=404, detail="Invalid reset token")
+
+    # 🔥 التعديل الآمن والصحيح هنا:
+    db_expire = user.ResetTokenExpire
+    if db_expire and db_expire.tzinfo is None:
+        db_expire = db_expire.replace(tzinfo=datetime.timezone.utc)
+
+    # هنا بنقارن التوقيت المتعدل بالوقت الحالي المتظبط على الـ utc
+    if (user.ResetTokenExpire is None or db_expire < datetime.datetime.now(datetime.timezone.utc)):
+        raise HTTPException(status_code=400, detail="Reset token has expired")
 
     db.execute(
         users_table.update()
         .where(users_table.c.Id == user.Id)
-        .values(
-            PasswordHash=hash_password(data.new_password),
-            ResetToken=None
-        )
+        .values(PasswordHash=hash_password(data.new_password), ResetToken=None, ResetTokenExpire=None)
     )
 
     db.commit()
@@ -676,6 +728,7 @@ async def generate_tryon(
     person_image: UploadFile = File(...),
     outfit_url: Optional[str] = Form(None), # خليناه اختياري
     outfit_file: Optional[UploadFile] = File(None), # ضيفنا إمكانية استقبال ملف اللبس
+    cloth_type: str = Form("upper"),
     user_data=Depends(verify_token)
 ):
     email = user_data.get("sub")
@@ -708,7 +761,7 @@ async def generate_tryon(
         raise HTTPException(status_code=400, detail="Please select an outfit or upload one!")
 
     # 3. نضيف المهمة للـ Queue بالمسار المحدث
-    job = await job_queue.add_job(user_email=email, outfit_url=final_outfit_path_or_url)
+    job = await job_queue.add_job(user_email=email, outfit_url=final_outfit_path_or_url,cloth_type=cloth_type)
 
     # 4. نبعت المهمة تشتغل في الخلفية
     background_tasks.add_task(job_queue.process_job, job.id, local_path, model)
@@ -769,6 +822,7 @@ async def generate_tryon_sync(
     person_image: UploadFile = File(...),
     outfit_url:   Optional[str]        = Form(None),
     outfit_file:  Optional[UploadFile] = File(None),
+    cloth_type:   str                  = Form("upper"), 
     user_data=Depends(verify_token),
 ):
     """
@@ -806,6 +860,7 @@ async def generate_tryon_sync(
         result = await model.run(
             person_image_path=local_path,
             outfit_url=final_outfit,
+            cloth_type=cloth_type
         )
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -881,6 +936,51 @@ async def model_health():
             "error":   str(e),
             "hint":    "شغّل الـ Colab notebook وحدّث MODEL_API_URL في .env",
         }
+@app.post("/contact")
+async def contact(
+    data: ContactMessage,
+    db: Session = Depends(get_db)
+):
+
+    db.execute(
+        contact_messages_table.insert().values(
+            Name=data.name,
+            Email=data.email,
+            Subject=data.subject,
+            Message=data.message
+        )
+    )
+
+    db.commit()
+
+    html = f"""
+    <h2>New Contact Message</h2>
+
+    <p><b>Name:</b> {data.name}</p>
+
+    <p><b>Email:</b> {data.email}</p>
+
+    <p><b>Subject:</b> {data.subject}</p>
+
+    <p><b>Message:</b></p>
+
+    <p>{data.message}</p>
+    """
+
+    message = MessageSchema(
+        subject=f"Contact Us - {data.subject}",
+        recipients=["vwear.authentication@gmail.com"],
+        body=html,
+        subtype="html"
+    )
+
+    fm = FastMail(conf)
+
+    await fm.send_message(message)
+
+    return {
+        "message": "Message sent successfully."
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

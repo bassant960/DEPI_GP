@@ -230,6 +230,55 @@
                     </div>
                 </div>
 
+                <!-- Step 2.5: Garment Type Selector -->
+                <div class="mb-4">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Garment Type</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="selectClothType(this, 'upper')"
+                            class="cloth-type-btn active-type flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 border-brand-500 bg-brand-50 text-brand-700 transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14c-4 0-8 2-8 4v1h16v-1c0-2-4-4-8-4z"/>
+                            </svg>
+                            <span class="text-xs font-bold">Upper</span>
+                        </button>
+                        <button onclick="selectClothType(this, 'lower')"
+                            class="cloth-type-btn flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 border-gray-200 bg-white/50 text-gray-500 hover:border-brand-300 hover:text-brand-600 transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            </svg>
+                            <span class="text-xs font-bold">Lower</span>
+                        </button>
+                        <button onclick="selectClothType(this, 'overall')"
+                            class="cloth-type-btn flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 border-gray-200 bg-white/50 text-gray-500 hover:border-brand-300 hover:text-brand-600 transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                            </svg>
+                            <span class="text-xs font-bold">Overall</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Auto-detect suggestion banner (hidden by default) -->
+                <div id="type-suggestion" class="hidden mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+                    <svg class="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-amber-800">Looks like a <span id="detected-type-label" class="capitalize"></span> garment</p>
+                        <p class="text-xs text-amber-600 mt-0.5">Switch for better results?</p>
+                    </div>
+                    <button id="suggestion-apply-btn" onclick="applySuggestion()"
+                        class="flex-shrink-0 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg transition-colors">
+                        Switch
+                    </button>
+                    <button onclick="dismissSuggestion()"
+                        class="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
                 <!-- Action Button -->
                 <button id="generate-btn" onclick="startAI()"
                     class="mt-auto w-full bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white font-bold py-4 rounded-2xl transition-all duration-300 shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2 group transform active:scale-95">
@@ -400,6 +449,112 @@
         let globalPersonImageFile = null;
         let globalOutfitUrl = null;
         let globalOutfitFile = null;
+        let globalClothType = 'upper'; // default
+        let detectedClothType = null;  // اللي الـ AI اكتشفه
+
+        // ============================================================
+        // Cloth Type Selector Logic
+        // ============================================================
+        function selectClothType(btn, type) {
+            globalClothType = type;
+            document.querySelectorAll('.cloth-type-btn').forEach(b => {
+                b.classList.remove('border-brand-500', 'bg-brand-50', 'text-brand-700');
+                b.classList.add('border-gray-200', 'bg-white/50', 'text-gray-500');
+            });
+            btn.classList.add('border-brand-500', 'bg-brand-50', 'text-brand-700');
+            btn.classList.remove('border-gray-200', 'bg-white/50', 'text-gray-500');
+
+            // لو المستخدم اختار بنفسه، اخفي الـ suggestion
+            dismissSuggestion();
+        }
+
+        // ============================================================
+        // Auto-detect garment type من صورة اللبس
+        // بيستخدم Claude API عشان يكتشف نوع اللبس
+        // ============================================================
+        async function detectGarmentType(imageUrl) {
+            try {
+                // حوّل الصورة لـ base64 لو كانت File object
+                let imageData;
+                let mediaType = 'image/jpeg';
+
+                if (imageUrl instanceof File) {
+                    const buf = await imageUrl.arrayBuffer();
+                    const bytes = new Uint8Array(buf);
+                    let binary = '';
+                    bytes.forEach(b => binary += String.fromCharCode(b));
+                    imageData = btoa(binary);
+                    mediaType = imageUrl.type || 'image/jpeg';
+                } else {
+                    // URL — نحملها ونحولها
+                    const resp = await fetch(imageUrl);
+                    const buf  = await resp.arrayBuffer();
+                    const bytes = new Uint8Array(buf);
+                    let binary = '';
+                    bytes.forEach(b => binary += String.fromCharCode(b));
+                    imageData = btoa(binary);
+                    mediaType = resp.headers.get('content-type') || 'image/jpeg';
+                }
+
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'claude-sonnet-4-6',
+                        max_tokens: 20,
+                        messages: [{
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'image',
+                                    source: { type: 'base64', media_type: mediaType, data: imageData }
+                                },
+                                {
+                                    type: 'text',
+                                    text: 'Look at this clothing item. Reply with ONE word only: "upper" (shirts, tops, jackets, hoodies) OR "lower" (pants, skirts, shorts) OR "overall" (dresses, jumpsuits, full outfits). No other words.'
+                                }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                const raw  = data?.content?.[0]?.text?.trim().toLowerCase() || '';
+
+                if (['upper', 'lower', 'overall'].includes(raw)) return raw;
+                return null;
+
+            } catch (e) {
+                console.warn('Auto-detect failed:', e);
+                return null;
+            }
+        }
+
+        // ============================================================
+        // Suggestion Banner
+        // ============================================================
+        function showSuggestion(detected) {
+            detectedClothType = detected;
+            if (detected === globalClothType) return; // مفيش تعارض
+
+            document.getElementById('detected-type-label').textContent = detected;
+            document.getElementById('type-suggestion').classList.remove('hidden');
+        }
+
+        function dismissSuggestion() {
+            document.getElementById('type-suggestion').classList.add('hidden');
+        }
+
+        function applySuggestion() {
+            if (!detectedClothType) return;
+            // ابحث عن الـ button المناسب واضغطه
+            document.querySelectorAll('.cloth-type-btn').forEach(btn => {
+                const label = btn.querySelector('span')?.textContent?.trim().toLowerCase();
+                if (label === detectedClothType) {
+                    selectClothType(btn, detectedClothType);
+                }
+            });
+        }
 
         const viewData = [
             { name: "Front View", src: "assets/frontView.avif" },
@@ -440,6 +595,11 @@
             const imgEl = element.querySelector('img');
             if (imgEl) {
                 globalOutfitUrl = imgEl.src;
+
+                // ← Auto-detect garment type في الخلفية
+                detectGarmentType(globalOutfitUrl).then(detected => {
+                    if (detected) showSuggestion(detected);
+                });
             }
 
             const items = document.querySelectorAll('.garment-item');
@@ -507,6 +667,7 @@
     // 🔥 هنا التعديل السحري اللي بيحل المشكلة:
     const formData = new FormData();
     formData.append("person_image", globalPersonImageFile);
+    formData.append("cloth_type", globalClothType); // upper | lower | overall
     
     if (globalOutfitFile) {
         // لو اليوزر رفع لبس من جهازه، نبعت الفايل الحقيقي للباك إند
@@ -636,6 +797,11 @@
                 globalOutfitFile = file;
                 // تحويل الصورة لرابط محلي مؤقت
                 const localImageUrl = URL.createObjectURL(file);
+
+                // ← Auto-detect من الـ file مباشرة
+                detectGarmentType(file).then(detected => {
+                    if (detected) showSuggestion(detected);
+                });
 
                 // تحديث شكل الكارت لعرض الصورة المرفوعة مكان الأيقونة
                 garmentCard.innerHTML = `

@@ -69,8 +69,9 @@ tailwind.config = {
             class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none text-sm sm:text-base">
 
         <div class="flex justify-between text-xs sm:text-sm">
-            <label class="flex items-center gap-2"><input type="checkbox"> Remember me</label>
-            <a href="#" class="text-brand-600">Forgot Your Password?</a>
+            <label class="flex items-center gap-2"><input type="checkbox" id="logRemember"> Remember me</label>
+            
+            <a href="#" id="forgotPassBtn" class="text-brand-600">Forgot Your Password?</a>
         </div>
 
         <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-accent-500 text-white py-3 rounded-xl font-bold hover:opacity-90 transition">
@@ -89,12 +90,15 @@ tailwind.config = {
 
         const email = document.getElementById('logEmail').value;
         const password = document.getElementById('logPass').value;
+        // 🔥 1. السطر الجديد: بيشوف اليوزر معلم على الـ checkbox ولا لأ (true أو false)
+        const rememberMe = document.getElementById('logRemember').checked; 
 
         try {
             const response = await fetch('http://127.0.0.1:8000/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, password: password })
+                // 🔥 2. هنا ضفنا الـ remember_me جوه الـ body عشان تتبعت للباك إند
+                body: JSON.stringify({ email: email, password: password, remember_me: rememberMe })
             });
 
             const data = await response.json();
@@ -117,6 +121,33 @@ tailwind.config = {
         } catch (error) {
             console.error(error);
             alert("Server Error");
+        }
+    });
+
+    // 🔥 3. كود زرار نسيت كلمة المرور الجديد بالكامل
+    document.getElementById('forgotPassBtn').addEventListener('click', async (e) => {
+        e.preventDefault(); // بيمنع اللينك يفتح صفحة فاضية
+        
+        // بيفتح نافذة صغيرة تسأل اليوزر عن إيميله
+        const email = prompt("Please enter your email to reset your password:");
+        
+        if (email) { // لو اليوزر كتب الإيميل وداس OK
+            try {
+                const response = await fetch('http://127.0.0.1:8000/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert("✅ " + data.message);
+                } else {
+                    alert("❌ " + data.detail);
+                }
+            } catch (error) {
+                alert("Server Error. Please try again.");
+            }
         }
     });
 </script>
