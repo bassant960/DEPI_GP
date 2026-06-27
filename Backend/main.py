@@ -21,6 +21,7 @@ from model import model
 from job_queue import job_queue
 from dotenv import load_dotenv
 import os
+import asyncio
 from fastapi import BackgroundTasks 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 dotenv_path = os.path.join(base_dir, ".env")
@@ -738,7 +739,148 @@ def get_job(job_id: str, user_data=Depends(verify_token)):
 def model_status(user_data=Depends(verify_token)):
     return model.status()
 
+"""
+========================================================
+الكود ده بيحل مشكلة الـ Frontend اللي بيستنى رد فوري
+========================================================
 
+المشكلة الأصلية:
+- الفرونت يبعت request لـ /generate-tryon
+- الباك يرجع {"job_id": "xxx"} فوراً
+- الفرونت مش بيعمل polling → مش بيشوف النتيجة أبداً
+
+الحل:
+- ضيفنا endpoint مباشر /generate-tryon-sync بيستنى الموديل
+- وضيفنا polling endpoint /queue/job/{job_id}/wait للـ async flow
+- الفرونت يختار اللي يناسبه
+
+========================================================
+الكود ده بيتضاف في main.py بعد الـ imports الموجودة
+========================================================
+"""
+
+# ============================================================
+# OPTION A — Synchronous endpoint (الأبسط والمضمون للـ Frontend)
+# بيستبدل /generate-tryon الموجود أو بيتضاف جنبه
+# ============================================================
+
+@app.post("/generate-tryon-sync")
+async def generate_tryon_sync(
+    person_image: UploadFile = File(...),
+    outfit_url:   Optional[str]        = Form(None),
+    outfit_file:  Optional[UploadFile] = File(None),
+    user_data=Depends(verify_token),
+):
+    """
+    ينتظر الموديل يخلص ويرجع النتيجة مباشرة.
+    الفرونت بيستنى (max 3 دقايق) وبعدين يعرض الصورة.
+    """
+    email = user_data.get("sub")
+
+    # 1. حفظ صورة الشخص
+    ext      = os.path.splitext(person_image.filename)[1] if person_image.filename else ".jpg"
+    filename = f"temp_{uuid.uuid4().hex}{ext}"
+    local_path = os.path.join(UPLOAD_DIR, filename)
+
+    with open(local_path, "wb") as buf:
+        shutil.copyfileobj(person_image.file, buf)
+
+    # 2. تحديد مصدر اللبس
+    final_outfit = outfit_url
+
+    if outfit_file and outfit_file.filename:
+        o_ext      = os.path.splitext(outfit_file.filename)[1]
+        o_filename = f"outfit_{uuid.uuid4().hex}{o_ext}"
+        o_path     = os.path.join(UPLOAD_DIR, o_filename)
+        with open(o_path, "wb") as buf:
+            shutil.copyfileobj(outfit_file.file, buf)
+        final_outfit = o_path
+    print(f"DEBUG → person: {local_path}")
+    print(f"DEBUG → outfit: {final_outfit}")
+    if not final_outfit:
+        raise HTTPException(400, "Please provide outfit_url or outfit_file")
+    print(f"DEBUG → person: {local_path}")
+    print(f"DEBUG → outfit: {final_outfit}")
+    # 3. شغّل الموديل مباشرة (sync wait)
+    try:
+        result = await model.run(
+            person_image_path=local_path,
+            outfit_url=final_outfit,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    # 4. ارجع الـ URL للفرونت مباشرة
+    return {
+        "success":    True,
+        "result_url": result["result_url"],
+        "email":      email,
+    }
+
+
+# ============================================================
+# OPTION B — الـ endpoint الأصلي Async + polling helper
+# الفرونت بيتصل بـ /generate-tryon → يجيب job_id
+# وبعدين بيعمل polling على /queue/job/{job_id}/wait
+# ============================================================
+
+@app.get("/queue/job/{job_id}/wait")
+async def wait_for_job(job_id: str, user_data=Depends(verify_token)):
+    """
+    Long-polling: يستنى لحد ما الـ job يخلص (max 200 ثانية).
+    الفرونت يتصل بيه مرة واحدة بعد /generate-tryon.
+    """
+    import asyncio
+
+    max_wait = 200   # ثانية
+    interval = 2     # فترة الاستطلاع
+
+    for _ in range(max_wait // interval):
+        job = job_queue.get_job(job_id)
+
+        if not job:
+            raise HTTPException(404, "Job not found")
+
+        if job.status == "done":
+            return {
+                "status":     "done",
+                "result_url": job.result_url,
+            }
+
+        if job.status == "failed":
+            raise HTTPException(500, f"Job failed: {job.error}")
+
+        await asyncio.sleep(interval)
+
+    raise HTTPException(504, "Job timeout — Colab is taking too long")
+
+
+# ============================================================
+# Health check للـ Colab connection (بدون auth للتسهيل)
+# ============================================================
+
+@app.get("/model/health")
+async def model_health():
+    """
+    بيتحقق إن الـ Colab server شغال.
+    شغّله في المتصفح قبل ما تجرب الـ try-on.
+    """
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(model.health_url)
+        return {
+            "backend": "ok",
+            "colab":   r.json(),
+            "tunnel":  model.base_url,
+        }
+    except Exception as e:
+        return {
+            "backend": "ok",
+            "colab":   "unreachable",
+            "error":   str(e),
+            "hint":    "شغّل الـ Colab notebook وحدّث MODEL_API_URL في .env",
+        }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

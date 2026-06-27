@@ -474,122 +474,83 @@
         // Generate AI Try-On Logic (Real API Call)
         // ============================================================
         async function startAI() {
-            if (!globalPersonImageFile) {
-                alert("Please upload your photo first!");
-                return;
-            }
-            if (!globalOutfitUrl) {
-                alert("Please select an outfit to try on!");
-                return;
-            }
+    if (!globalPersonImageFile) {
+        alert("Please upload your photo first!");
+        return;
+    }
+    if (!globalOutfitUrl && !globalOutfitFile) {
+        alert("Please select an outfit to try on!");
+        return;
+    }
 
-            const btn = document.getElementById('generate-btn');
-            const idleState = document.getElementById('state-idle');
-            const imageContainer = document.getElementById('image-container');
-            const scanOverlay = document.getElementById('scan-overlay');
-            const tools = document.getElementById('result-tools');
-            const loadingText = document.getElementById('loading-text');
-            const token = localStorage.getItem("token");
-
-            // تجهيز واجهة التحميل
-            btn.disabled = true;
-            btn.innerHTML = `<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Starting Engine...`;
-
-            idleState.classList.add('hidden');
-            imageContainer.classList.remove('hidden', 'opacity-0');
-            scanOverlay.classList.remove('hidden');
-            tools.classList.add('hidden');
-
-            
-            // تجهيز البيانات
-            const formData = new FormData();
-            formData.append("person_image", globalPersonImageFile);
-
-            // لو اليوزر رفع لبس من جهازه، نبعت الملف نفسه.. لو اختار من الجاهزين، نبعت اللينك
-            if (globalOutfitFile) {
-                formData.append("outfit_file", globalOutfitFile); 
-            } else {
-               formData.append("outfit_url", globalOutfitUrl);
-            }
-
-            try {
-                // إرسال الطلب للباك اند
-                loadingText.innerText = "Sending to AI server...";
-                const response = await fetch("http://127.0.0.1:8000/generate-tryon", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${token}` },
-                    body: formData
-                });
-
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.detail || "Server error");
-                }
-
-                // استلام الـ Job ID وبدء المراقبة
-                loadingText.innerText = "Adapting to your body... (Takes ~1 min)";
-                checkJobStatus(data.job_id, token);
-
-            } catch (error) {
-                console.error("AI Error:", error);
-                alert("Failed to start Try-On: " + error.message);
-                resetUI();
-            }
-        }
-
-        // ============================================================
-        // Polling (Checking Job Status)
-        // ============================================================
-        function checkJobStatus(jobId, token) {
-    const loadingText = document.getElementById('loading-text');
     const btn = document.getElementById('generate-btn');
+    const idleState = document.getElementById('state-idle');
+    const imageContainer = document.getElementById('image-container');
+    const scanOverlay = document.getElementById('scan-overlay');
+    const tools = document.getElementById('result-tools');
+    const loadingText = document.getElementById('loading-text');
     
-    const interval = setInterval(async () => {
-        try {
-            const response = await fetch(`http://127.0.0.1:8000/queue/job/${jobId}`, {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-            const jobData = await response.json();
+    const token = localStorage.getItem("token");
+    if (!token) {
+        alert("Session expired. Please login again.");
+        return;
+    }
 
-            if (jobData.status === "done") {
-                clearInterval(interval);
-                
-                // عرض النتيجة الفعلية!
-                document.getElementById('scan-overlay').classList.add('hidden');
-                
-                // 🚨 تنبيه هام لفريق العمل:
-                // الموديل الحالي (CatVTON) يخرج زاوية أمامية واحدة (Front View) فقط.
-                // السطر التالي `viewData[0].src = fullResultUrl;` يقوم بتحديث مسار الصورة الأمامية بنجاح.
-                // ولكن الدوال التي تليها (مثل updateViewDisplay) تحاول عمل حلقة (Loop) 
-                // لتحديث باقي الفيووهات (Back, Left, Right) من مصفوفة viewData.
-                // إذا واجهتكم أي رسائل خطأ (Alerts) متكررة عند اكتمال المهمة، فذلك لأن الموديل
-                // لا يوفر صوراً للزوايا الثلاثة الأخرى، ويمكنكم هنا تبسيط الكود بالاكتفاء بتحديث 
-                // عنصر الصورة الفردي `mirror-result` مباشرة بالرابط القادم من الباك إند.
-                const fullResultUrl = `http://127.0.0.1:8000${jobData.result_url}`;
-                viewData[0].src = fullResultUrl; 
-                
-                currentViewIndex = 0;
-                updateViewDisplay();
+    btn.disabled = true;
+    btn.innerHTML = `<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Applying Magic (Wait ~30s)...`;
 
-                document.getElementById('result-tools').classList.remove('hidden');
-                
-                btn.disabled = false;
-                btn.innerHTML = `Try Another Outfit`;
-                
-            } else if (jobData.status === "failed") {
-                clearInterval(interval);
-                alert("AI Processing failed: " + jobData.error);
-                resetUI();
-            } else {
-                // لسه بيحمل (Processing)
-                loadingText.innerText = "Applying magic try-on... Please wait";
-            }
-        } catch (error) {
-            console.error("Status check error:", error);
+    idleState.classList.add('hidden');
+    imageContainer.classList.remove('hidden', 'opacity-0');
+    scanOverlay.classList.remove('hidden');
+    tools.classList.add('hidden');
+
+    // 🔥 هنا التعديل السحري اللي بيحل المشكلة:
+    const formData = new FormData();
+    formData.append("person_image", globalPersonImageFile);
+    
+    if (globalOutfitFile) {
+        // لو اليوزر رفع لبس من جهازه، نبعت الفايل الحقيقي للباك إند
+        formData.append("outfit_file", globalOutfitFile);
+        
+    } else {
+        // لو اختار صورة جاهزة من الموقع، نبعت الرابط بتاعها
+        formData.append("outfit_url", globalOutfitUrl || "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab");
+    }
+
+    try {
+        loadingText.innerText = "Synthesizing fabric... Please wait";
+        
+        const response = await fetch("http://127.0.0.1:8000/generate-tryon-sync", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` },
+            body: formData
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || "Server error");
         }
-    }, 3000); // بيسأل السيرفر كل 3 ثواني
+
+        document.getElementById('scan-overlay').classList.add('hidden');
+        
+        viewData[0].src = "http://127.0.0.1:8000" + data.result_url;
+        currentViewIndex = 0;
+        updateViewDisplay();
+
+        document.getElementById('result-tools').classList.remove('hidden');
+        
+        btn.disabled = false;
+        btn.innerHTML = `Try Another Outfit`;
+
+    } catch (error) {
+        console.error("AI Error:", error);
+        alert("Failed to start Try-On: " + error.message);
+        resetUI();
+    }
 }
+
+        
 
         function resetUI() {
             document.getElementById('scan-overlay').classList.add('hidden');

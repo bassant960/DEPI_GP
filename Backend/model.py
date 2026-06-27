@@ -1,211 +1,150 @@
 import os
 import uuid
-import requests
-from io import BytesIO
-from PIL import Image
+import httpx
+import base64
+import aiofiles
 from dotenv import load_dotenv
-from gradio_client import Client, handle_file
 
 load_dotenv()
 
 # ============================================================
-# Model Configuration
+# Config
 # ============================================================
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ============================================================
-# Model Wrapper Class
+# ModelWrapper — يتكلم مع Colab/Kaggle عبر ngrok tunnel
 # ============================================================
 
 class ModelWrapper:
     """
-    Wraps the virtual try-on AI model.
+    بيبعت صورة الشخص + اللبس للـ Colab server عبر ngrok
+    ويستقبل النتيجة كـ base64 أو raw image bytes
     """
 
     def __init__(self):
-        self.api_key = os.getenv("MODEL_API_KEY") or None
-        self.model_url = os.getenv("MODEL_API_URL", "zhengchong/CatVTON")
-        self.model_name = "CatVTON via Gradio"
-        
-        # محاولة الاتصال
-        self.is_ready = False
-        try:
-            if self.api_key:
-                test_client = Client(self.model_url, token=self.api_key)
-            else:
-                test_client = Client(self.model_url)
-            self.is_ready = True
-            print(f"✅ Connected to {self.model_url}")
-        except Exception as e:
-            print(f"❌ Failed to connect: {e}")
-            self.is_ready = False
+        # URL الـ ngrok اللي بتجيبه من Colab كل مرة تشغله
+        # مثال: https://xxxx-xx-xx.ngrok-free.app
+        base_url = os.getenv("MODEL_API_URL", "https://steadfast-uncheck-appraiser.ngrok-free.dev").rstrip("/")
+
+        # لو اللينك المحفوظ فيه /api/vwear/tryon من الكولاود القديم، بنقطعه
+        # ونوحد الـ endpoint على /tryon
+        if "/api/vwear/tryon" in base_url:
+            base_url = base_url.replace("/api/vwear/tryon", "")
+
+        self.base_url  = base_url
+        self.tryon_url = f"{base_url}/tryon"
+        self.health_url = f"{base_url}/health"
+        self.model_name = "CatVTON via Colab"
 
     def status(self) -> dict:
         return {
-            "model": self.model_name,
-            "ready": self.is_ready,
-            "api_url": self.model_url,
-            "has_token": bool(self.api_key),
+            "model":    self.model_name,
+            "base_url": self.base_url,
+            "tryon_endpoint": self.tryon_url,
         }
 
-    def _save_result_image(self, image_path: str) -> str:
-        """Save result image, converting RGBA to RGB if needed."""
-        try:
-            if image_path.startswith('http'):
-                response = requests.get(image_path)
-                img = Image.open(BytesIO(response.content))
-            else:
-                img = Image.open(image_path)
-            
-            if img.mode == 'RGBA':
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                background.paste(img, mask=img.split()[-1])
-                img = background
-            elif img.mode != 'RGB':
-                img = img.convert('RGB')
-            
-            filename = f"result_{uuid.uuid4().hex}.jpg"
-            final_path = os.path.join(UPLOAD_DIR, filename)
-            img.save(final_path, 'JPEG', quality=95)
-            
-            return f"/uploads/{filename}"
-            
-        except Exception as e:
-            print(f"❌ Error saving image: {e}")
-            raise
+    # ── قراءة ملف (لوكال path) أو URL ────────────────────
 
-    def _prepare_image_as_png(self, image_path: str) -> str:
-        if not image_path or not os.path.exists(image_path) or image_path.startswith("http"):
-            return image_path
-        
-        try:
-            print(f"🔄 Converting to PNG: {image_path}")
-            with Image.open(image_path) as img:
-                if img.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new("RGB", img.size, (255, 255, 255))
-                    if img.mode == 'RGBA':
-                        background.paste(img, mask=img.split()[-1])
-                    else:
-                        img = img.convert('RGBA')
-                        background.paste(img, mask=img.split()[-1])
-                    img = background
-                elif img.mode != 'RGB':
-                    img = img.convert('RGB')
-                
-                new_path = image_path.rsplit('.', 1)[0] + '.png'
-                img.save(new_path, "PNG")
-                
-                if new_path != image_path:
-                    os.remove(image_path)
-                
-                print(f"✅ Saved as PNG: {new_path}")
-                return new_path
-                
-        except Exception as e:
-            print(f"⚠️ Error converting to PNG: {e}")
-            return image_path
-
-    def _create_blank_mask(self, image_path: str) -> str:
-        """⭐ السحر الجديد: إنشاء قناع شفاف بالكامل لإرضاء الموديل وتجنب الـ IndexError"""
-        if not image_path or not os.path.exists(image_path) or image_path.startswith("http"):
-            return None
-            
-        try:
-            with Image.open(image_path) as img:
-                # إنشاء صورة شفافة بالكامل بنفس الحجم
-                blank = Image.new('RGBA', img.size, (0, 0, 0, 0))
-                blank_path = image_path.rsplit('.', 1)[0] + '_mask.png'
-                blank.save(blank_path, "PNG")
-                print(f"✅ Created blank mask: {blank_path}")
-                return blank_path
-        except Exception as e:
-            print(f"⚠️ Error creating blank mask: {e}")
-            return None
+    async def _read_file(self, path_or_url: str) -> tuple[str, bytes, str]:
+     if path_or_url.startswith("http"):
+        # URL خارجي — نحمله
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(path_or_url)
+            r.raise_for_status()
+            return ("outfit.jpg", r.content, "image/jpeg")
+     else:
+        # Local file path — نقرأه من الديسك مباشرة
+        async with aiofiles.open(path_or_url, "rb") as f:
+            data = await f.read()
+        ext = os.path.splitext(path_or_url)[1].lower()
+        ct  = "image/png" if ext == ".png" else "image/jpeg"
+        return (os.path.basename(path_or_url), data, ct)
+    # ── الدالة الرئيسية ───────────────────────────────────
 
     async def run(self, person_image_path: str, outfit_url: str) -> dict:
-        blank_mask_path = None
-        if not self.is_ready:
-            raise RuntimeError("Model is not ready. Please check your connection.")
+        """
+        يبعت الصورتين للـ Colab ويحفظ النتيجة لوكال.
+        يرجع {"result_url": "/uploads/result_xxx.jpg"}
+        """
+        print(f"🚀 Sending to Colab → {self.tryon_url}")
 
         try:
-            print("🚀 Starting AI inference...")
-            
-            person_image_path = self._prepare_image_as_png(person_image_path)
-            
-            # 👇 إنشاء الماسك الشفاف الوهمي
-            blank_mask_path = self._create_blank_mask(person_image_path)
-            
-            if outfit_url and os.path.exists(outfit_url) and not outfit_url.startswith("http"):
-                outfit_url = self._prepare_image_as_png(outfit_url)
+            person_data = await self._read_file(person_image_path)
+            cloth_data  = await self._read_file(outfit_url)
 
-            if self.api_key:
-                client = Client(self.model_url, token=self.api_key)
-            else:
-                client = Client(self.model_url)
-            
-            # ⭐ هنا الخدعة: وضع الماسك الشفاف في layers عشان الموديل ميضربش IndexError
-            person_img_dict = {
-                "background": handle_file(person_image_path),
-                "layers": [handle_file(blank_mask_path)] if blank_mask_path else [],
-                "composite": handle_file(person_image_path)
+            files = {
+                "person_image": person_data,   # (name, bytes, content_type)
+                "cloth_image":  cloth_data,
             }
 
-            print("📤 Sending request to AI model...")
-            
-            result = client.predict(
-                person_image=person_img_dict,
-                cloth_image=handle_file(outfit_url),
-                cloth_type="upper",
-                num_inference_steps=50,
-                guidance_scale=2.5,
-                seed=42,
-                show_type="result only",  
-                api_name="/submit_function"
-            )
+            # Timeout 180s — الموديل بياخد وقت
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                resp = await client.post(self.tryon_url, files=files)
 
-            result_path = None
-            if isinstance(result, dict):
-                result_path = result.get('path') or result.get('url')
-            elif isinstance(result, str):
-                result_path = result
-            elif isinstance(result, (list, tuple)) and len(result) > 0:
-                last_item = result[-1]
-                if isinstance(last_item, dict):
-                    result_path = last_item.get('path') or last_item.get('url')
-                elif isinstance(last_item, str):
-                    result_path = last_item
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Colab returned {resp.status_code}: {resp.text[:300]}"
+                )
 
-            if not result_path:
-                raise RuntimeError(f"Could not extract image path from result: {result}")
+            # ── استقبال النتيجة ──────────────────────────
+            # الـ Colab server بيرجع JSON فيه result_image كـ base64 data URI
+            # مثال: {"success": true, "result_image": "data:image/png;base64,..."}
 
-            result_url = self._save_result_image(result_path)
-            print(f"✅ Final result URL: {result_url}")
-            
+            content_type = resp.headers.get("content-type", "")
+
+            if "application/json" in content_type:
+                # ─── JSON response (base64) ───────────────
+                data = resp.json()
+
+                result_b64 = data.get("result_image", "")
+                if not result_b64:
+                    raise RuntimeError("Colab JSON response missing 'result_image' field")
+
+                # استخرج الـ bytes من الـ data URI
+                if "base64," in result_b64:
+                    result_b64 = result_b64.split("base64,")[1]
+
+                image_bytes = base64.b64decode(result_b64)
+
+            else:
+                # ─── Raw image bytes ─────────────────────
+                image_bytes = resp.content
+
+            # ── حفظ الصورة ──────────────────────────────
+            filename   = f"result_{uuid.uuid4().hex}.jpg"
+            final_path = os.path.join(UPLOAD_DIR, filename)
+
+            with open(final_path, "wb") as f:
+                f.write(image_bytes)
+
+            result_url = f"/uploads/{filename}"
+            print(f"✅ Result saved → {result_url}")
             return {"result_url": result_url}
 
+        except httpx.TimeoutException:
+            raise RuntimeError(
+                "Colab server timeout (180s). تأكد إن الـ Colab شغال وفيه GPU."
+            )
+        except httpx.ConnectError:
+            raise RuntimeError(
+                f"Can't connect to Colab: {self.base_url}\n"
+                "تأكد إن الـ ngrok tunnel شغال وحدّث MODEL_API_URL في .env"
+            )
         except Exception as e:
-            print(f"❌ AI Processing failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise RuntimeError(f"Gradio AI Processing failed: {str(e)}")
+            print(f"❌ AI error: {e}")
+            raise RuntimeError(f"AI Processing failed: {e}")
 
         finally:
-            # تنظيف الملفات المؤقتة بما فيها الماسك الوهمي
+            # تنظيف الـ temp person image
             if os.path.exists(person_image_path):
                 try:
                     os.remove(person_image_path)
-                except:
-                    pass
-            if blank_mask_path and os.path.exists(blank_mask_path):
-                try:
-                    os.remove(blank_mask_path)
-                except:
+                except Exception:
                     pass
 
-# ============================================================
-# Singleton
-# ============================================================
 
+# ── Singleton ──────────────────────────────────────────────
 model = ModelWrapper()
