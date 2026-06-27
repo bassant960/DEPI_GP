@@ -94,14 +94,16 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 REMEMBER_ME_DAYS = 30
 conf = ConnectionConfig(
-    MAIL_USERNAME="vwear.authentication@gmail.com",
-    MAIL_PASSWORD="123456vwear",
-    MAIL_FROM="vwear.authentication@gmail.com",
+    MAIL_USERNAME=os.getenv("SENDER_EMAIL"),
+    MAIL_PASSWORD=os.getenv("SENDER_PASSWORD"),
+    MAIL_FROM=os.getenv("SENDER_EMAIL"),
     MAIL_PORT=587,
     MAIL_SERVER="smtp.gmail.com",
+    MAIL_FROM_NAME="VWEAR Support",
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True
 )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
