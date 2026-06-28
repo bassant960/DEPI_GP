@@ -177,10 +177,10 @@ class UserImagesResponse(BaseModel):
     right_image: Optional[str]
 
 class ContactMessage(BaseModel):
-    name: str
+    name: str = "VWear Guest"
     email: EmailStr
     subject: str
-    message: str
+    message: str = Field(..., min_length=5, description="Message cannot be empty")
 
 # ============================================================
 # 7. Helper Functions
