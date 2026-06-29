@@ -911,7 +911,102 @@ async def wait_for_job(job_id: str, user_data=Depends(verify_token)):
 
     raise HTTPException(504, "Job timeout — Colab is taking too long")
 
+# ============================================================
+# أضف الـ endpoint ده في main.py
+# بعد أي endpoint موجود — مثلاً بعد /generate-tryon-sync
+# ============================================================
+# بيشتغل بطريقتين:
+#   1. keyword classifier من اسم الملف (فوري)
+#   2. لو الاسم مش واضح → بيحكم من نسبة الـ pixel colors
 
+@app.post("/detect-garment")
+async def detect_garment(
+    cloth_image: Optional[UploadFile] = File(None),
+    cloth_url:   Optional[str]        = Form(None),
+    user_data=Depends(verify_token),
+):
+    """
+    يكتشف نوع اللبس تلقائياً (upper / lower / overall).
+    مجاناً — بيستخدم keyword + color heuristics.
+    """
+    import io
+    import httpx
+    from PIL import Image
+    import numpy as np
+
+    # ── 1. Keyword classifier من اسم الملف ──────────────
+    UPPER_KW   = {'shirt','top','blouse','hoodie','jacket','coat','sweater',
+                  'tshirt','t-shirt','pullover','vest','cardigan','crop',
+                  'polo','sweatshirt','upper'}
+    LOWER_KW   = {'pant','trouser','jean','skirt','short','legging',
+                  'bottom','lower','chino'}
+    OVERALL_KW = {'dress','jumpsuit','overall','romper','suit',
+                  'gown','bodysuit'}
+
+    filename = ""
+    if cloth_image and cloth_image.filename:
+        filename = cloth_image.filename.lower()
+    elif cloth_url:
+        filename = cloth_url.split("/")[-1].lower()
+
+    name_lower = filename.replace("-", " ").replace("_", " ")
+    for kw in UPPER_KW:
+        if kw in name_lower:
+            return {"cloth_type": "upper", "method": "keyword"}
+    for kw in LOWER_KW:
+        if kw in name_lower:
+            return {"cloth_type": "lower", "method": "keyword"}
+    for kw in OVERALL_KW:
+        if kw in name_lower:
+            return {"cloth_type": "overall", "method": "keyword"}
+
+    # ── 2. Color/position heuristic من الصورة نفسها ─────
+    # الفكرة: في صور اللبس على خلفية بيضاء
+    # upper → الـ garment في النص العلوي من الصورة
+    # lower → الـ garment في النص السفلي
+    # overall → بيملا معظم الصورة
+    try:
+        if cloth_image:
+            img_bytes = await cloth_image.read()
+        elif cloth_url:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(cloth_url)
+                img_bytes = r.content
+        else:
+            raise HTTPException(400, "No image provided")
+
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB").resize((128, 128))
+        arr = np.array(img, dtype=np.float32)
+
+        # اعتبر pixel مش أبيض لو القيمة أقل من 240 في الـ 3 channels
+        mask = np.all(arr < 240, axis=2)   # True = جزء من اللبس
+
+        # قسّم الصورة لـ 3 أثلاث عمودية
+        h        = mask.shape[0]
+        top_pct  = mask[:h//3,    :].mean()   # الثلث العلوي
+        mid_pct  = mask[h//3:2*h//3, :].mean()
+        bot_pct  = mask[2*h//3:,  :].mean()   # الثلث السفلي
+        total    = mask.mean()
+
+        if total > 0.50:
+            cloth_type = "overall"
+        # 2. شرط الـ Overall الذكي: لازم يكون مغطي فوق وتحت، وبشرط إن التحت مش قليل أوي بالنسبة للنص
+        elif top_pct > 0.15 and bot_pct > 0.22 and bot_pct > (mid_pct * 0.6):
+            cloth_type = "overall"
+        # 3. لو الكثافة متركزة فوق والنص، وتحت قليل أو ممسوح (زي التيشيرت ده)
+        elif top_pct > bot_pct * 1.3:
+            cloth_type = "upper"
+        # 4. لو الكثافة تحت أعلى بوضوح (بنطلون أو جيبة)
+        elif bot_pct > top_pct * 1.3:
+            cloth_type = "lower"
+        else:
+            cloth_type = "upper"     # default safe
+
+        return {"cloth_type": cloth_type, "method": "color_heuristic"}
+
+    except Exception as e:
+        # لو فشل كل حاجة، رجّع upper كـ safe default
+        return {"cloth_type": "upper", "method": "default", "error": str(e)}
 # ============================================================
 # Health check للـ Colab connection (بدون auth للتسهيل)
 # ============================================================
