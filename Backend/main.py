@@ -16,6 +16,11 @@ import os
 import uuid
 import uvicorn
 import smtplib
+import io
+import cv2
+import numpy as np
+import httpx
+from PIL import Image
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import bcrypt
@@ -927,12 +932,9 @@ async def detect_garment(
 ):
     """
     يكتشف نوع اللبس تلقائياً (upper / lower / overall).
-    مجاناً — بيستخدم keyword + color heuristics.
+    مجاناً — بيستخدم keyword + (Edge/Contour Heuristics) by OpenCV.
     """
-    import io
-    import httpx
-    from PIL import Image
-    import numpy as np
+ 
 
     # ── 1. Keyword classifier من اسم الملف ──────────────
     UPPER_KW   = {'shirt','top','blouse','hoodie','jacket','coat','sweater',
@@ -960,11 +962,7 @@ async def detect_garment(
         if kw in name_lower:
             return {"cloth_type": "overall", "method": "keyword"}
 
-    # ── 2. Color/position heuristic من الصورة نفسها ─────
-    # الفكرة: في صور اللبس على خلفية بيضاء
-    # upper → الـ garment في النص العلوي من الصورة
-    # lower → الـ garment في النص السفلي
-    # overall → بيملا معظم الصورة
+    # ── 2. Edge & Contour Heuristic باستخدام OpenCV ─────
     try:
         if cloth_image:
             img_bytes = await cloth_image.read()
@@ -975,34 +973,80 @@ async def detect_garment(
         else:
             raise HTTPException(400, "No image provided")
 
+       # نفتح الصورة ونصغرها
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB").resize((128, 128))
-        arr = np.array(img, dtype=np.float32)
+        img_cv = np.array(img)
+        
+        # تحويل لرمادي
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_RGB2GRAY)
+        
+        # Blur خفيف لتنعيم الأطراف
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # 👇 التعديل السحري: فصل الهدوم عن الخلفية البيضاء أوتوماتيكياً 👇
+        # بنفترض إن الخلفية فاتحة، فالهدوم هتكون الجزء الأغمق
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        
+        # تنظيف الماسك من أي نقط صغيرة جوه القماش
+        kernel = np.ones((5, 5), np.uint8)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        
+        # استخراج المحيط الخارجي بناءً على الماسك الجديد
+        cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = cnts[0] if len(cnts) == 2 else cnts[1] 
+        
+        # رسم ماسك مصمت
+        mask_img = np.zeros_like(gray)
+        if contours:
+            cv2.drawContours(mask_img, contours, -1, (255), thickness=cv2.FILLED)
 
-        # اعتبر pixel مش أبيض لو القيمة أقل من 240 في الـ 3 channels
-        mask = np.all(arr < 240, axis=2)   # True = جزء من اللبس
+        # تحويل لـ Boolean
+        mask = mask_img > 0
 
-        # قسّم الصورة لـ 3 أثلاث عمودية
-        h        = mask.shape[0]
-        top_pct  = mask[:h//3,    :].mean()   # الثلث العلوي
-        mid_pct  = mask[h//3:2*h//3, :].mean()
-        bot_pct  = mask[2*h//3:,  :].mean()   # الثلث السفلي
-        total    = mask.mean()
+        if not contours or len(contours) == 0:
+            return {"cloth_type": "upper", "method": "fallback_no_contours"}
 
-        if total > 0.55:
-            cloth_type = "overall"   # بيملا معظم الصورة
-        elif top_pct > bot_pct * 1.4:
-            cloth_type = "upper"     # الكثافة في الأعلى
-        elif bot_pct > top_pct * 1.2:
-            cloth_type = "lower"     # الكثافة في الأسفل
+        # نجيب أكبر كونتور
+        c = max(contours, key=cv2.contourArea)
+        x, y, w, h_box = cv2.boundingRect(c)
+        
+        if w == 0 or h_box == 0:
+            return {"cloth_type": "upper", "method": "fallback_zero_size"}
+            
+        roi_mask = mask[y:y+h_box, x:x+w]
+        h_roi, w_roi = roi_mask.shape[0], roi_mask.shape[1]
+        
+        if h_roi == 0 or w_roi == 0:
+            return {"cloth_type": "upper", "method": "fallback_zero_roi"}
+
+        # حساب النسب
+        top_pct  = roi_mask[:h_roi//3,    :].mean()
+        mid_pct  = roi_mask[h_roi//3:2*h_roi//3, :].mean()
+        bot_pct  = roi_mask[2*h_roi//3:,  :].mean()
+        
+        aspect_ratio = h_box / float(w)
+
+        print(f"DEBUG ROI → AR: {aspect_ratio:.2f} | Top: {top_pct:.2f} | Mid: {mid_pct:.2f} | Bot: {bot_pct:.2f}")
+
+        # الشروط المعدلة والذكية:
+        # 1. الـ Overall: قطعة طويلة جداً (AR > 1.4) ومكملة لحد تحت (bot_pct > 0.20)
+        if aspect_ratio > 1.4 and bot_pct > 0.20 and top_pct > 0.20:
+            cloth_type = "overall"
+            
+        # 2. الـ Lower: إما بنطلون طويل والكثافة تحت بتقل (عشان تفرقة الرجلين)، أو شورت مربع والكثافة فوق أعلى بكثير
+        elif (aspect_ratio > 1.2 and bot_pct < mid_pct * 0.95 and top_pct < 0.40) or (aspect_ratio <= 1.2 and top_pct > bot_pct * 1.15):
+            cloth_type = "lower"
+            
+        # 3. الـ Upper: الباقي
         else:
-            cloth_type = "upper"     # default
+            cloth_type = "upper"
 
-        return {"cloth_type": cloth_type, "method": "color_heuristic"}
-
+        return {"cloth_type": cloth_type, "method": "cv2_otsu_bbox"}
     except Exception as e:
-        # لو فشل كل حاجة، رجّع upper كـ safe default
-        return {"cloth_type": "upper", "method": "default", "error": str(e)}
-# ============================================================
+        print(f"Detect Error: {e}")
+        return {"cloth_type": "upper", "method": "default_fallback", "error": str(e)}
+#============================================================
 # Health check للـ Colab connection (بدون auth للتسهيل)
 # ============================================================
 
@@ -1012,7 +1056,6 @@ async def model_health():
     بيتحقق إن الـ Colab server شغال.
     شغّله في المتصفح قبل ما تجرب الـ try-on.
     """
-    import httpx
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(model.health_url)
