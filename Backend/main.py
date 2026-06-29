@@ -94,7 +94,7 @@ metadata.create_all(bind=engine)
 # ============================================================
 # 3. Security
 # ============================================================
-SECRET_KEY = "vwear_super_secret_key_2026_backend_project"
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_if_not_found")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 REMEMBER_ME_DAYS = 30
