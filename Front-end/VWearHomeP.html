@@ -107,19 +107,37 @@
                         Us</a>
                 </div>
 
-                <!-- Auth Buttons -->
-                <div class="hidden md:flex items-center space-x-4">
-                    <!-- Login Button -->
+                <!-- Auth Buttons — guest (hidden when logged in) -->
+                <div id="login-buttons" class="hidden md:flex items-center space-x-4">
                     <a href="vwear_login.html" class="text-gray-800 hover:text-brand-600 font-semibold px-4 py-2 transition-colors">
-                     Login
+                        Login
                     </a>
-    
-                   <!-- Sign Up Button -->
-                   <a href="vwear_signup.html" 
-                      class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 shadow-md shadow-brand-500/20">
-                       Sign Up
-                   </a>
-                 </div>
+                    <a href="vwear_signup.html"
+                        class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 shadow-md shadow-brand-500/20">
+                        Sign Up
+                    </a>
+                </div>
+
+                <!-- User Menu — logged in (hidden when guest) -->
+                <div id="user-menu" class="hidden items-center gap-3">
+                    <!-- Avatar -->
+                    <img id="home-avatar"
+                        src="https://ui-avatars.com/api/?name=U&background=8b5cf6&color=fff&bold=true"
+                        class="w-9 h-9 rounded-full object-cover border-2 border-brand-500 cursor-pointer"
+                        alt="avatar">
+                    <!-- Username -->
+                    <span id="home-username" class="font-semibold text-gray-800 text-sm"></span>
+                    <!-- Try On -->
+                    <a href="TryOnPageDemo.html"
+                        class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-5 py-2 rounded-full font-semibold text-sm transition-all duration-300 shadow-md shadow-brand-500/20">
+                        Try On ✨
+                    </a>
+                    <!-- Logout -->
+                    <button onclick="handleLogout()"
+                        class="text-gray-500 hover:text-red-500 text-sm font-medium transition-colors">
+                        Logout
+                    </button>
+                </div>
             </div>
         </div>
     </nav>
@@ -381,6 +399,77 @@
                 });
             }
         });
+        document.addEventListener('DOMContentLoaded', async () => {
+        // 1. جلب البيانات من الـ Local Storage
+        const token = localStorage.getItem('token');
+        // بيقرأ بـ key بتاع الـ vwear أو الـ fallback
+        const savedUsername = localStorage.getItem('vwear_name') || localStorage.getItem('username');
+        const savedAvatar   = localStorage.getItem('vwear_avatar') || localStorage.getItem('profileImage');
+        
+        // 2. جلب عناصر الـ HTML
+        const loginButtons = document.getElementById('login-buttons');
+        const userMenu = document.getElementById('user-menu');
+        
+        if (token) {
+            console.log("User is logged in! Token found.");
+            
+            // إخفاء زراير تسجيل الدخول تماماً بـ Style صريح
+            if (loginButtons) {
+                loginButtons.style.setProperty('display', 'none', 'important');
+            }
+            
+            // إظهار منيو المستخدم
+            if (userMenu) {
+                userMenu.style.setProperty('display', 'flex', 'important');
+            }
+
+            // تحديث الاسم والصورة فوراً من الـ Local Storage عشان نكسب وقت والصفحة متأخرش
+            const nameEl = document.getElementById('home-username');
+            if (nameEl && savedUsername) nameEl.textContent = savedUsername;
+
+            const avatarEl = document.getElementById('home-avatar');
+            if (avatarEl && savedAvatar) avatarEl.src = savedAvatar;
+
+            // تحديث البيانات من السيرفر (تأكيد)
+            try {
+                const response = await fetch('http://127.0.0.1:8000/profile', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    if (nameEl) nameEl.textContent = userData.username;
+                    // لو مش حاطط صورة، نولد واحدة افتراضية بالاسم
+                    if (avatarEl && !savedAvatar) {
+                        avatarEl.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.username)}&background=8b5cf6&color=fff&bold=true`;
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching profile on homepage:", error);
+            }
+        } else {
+            console.log("No token found. User is guest.");
+            if (loginButtons) loginButtons.style.display = 'flex';
+            if (userMenu) userMenu.style.setProperty('display', 'none', 'important');
+        }
+    });
+
+    async function handleLogout() {
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                await fetch('http://127.0.0.1:8000/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) { console.warn('Logout request failed:', e); }
+        }
+        // امسح كل بيانات الـ session
+        ['token','vwear_name','vwear_email','vwear_avatar','username','profileImage']
+            .forEach(k => localStorage.removeItem(k));
+        window.location.href = 'vwear_login.html';
+    }
 </script>
 </body>
 

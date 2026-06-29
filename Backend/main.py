@@ -988,19 +988,14 @@ async def detect_garment(
         bot_pct  = mask[2*h//3:,  :].mean()   # الثلث السفلي
         total    = mask.mean()
 
-        if total > 0.50:
-            cloth_type = "overall"
-        # 2. شرط الـ Overall الذكي: لازم يكون مغطي فوق وتحت، وبشرط إن التحت مش قليل أوي بالنسبة للنص
-        elif top_pct > 0.15 and bot_pct > 0.22 and bot_pct > (mid_pct * 0.6):
-            cloth_type = "overall"
-        # 3. لو الكثافة متركزة فوق والنص، وتحت قليل أو ممسوح (زي التيشيرت ده)
-        elif top_pct > bot_pct * 1.3:
-            cloth_type = "upper"
-        # 4. لو الكثافة تحت أعلى بوضوح (بنطلون أو جيبة)
-        elif bot_pct > top_pct * 1.3:
-            cloth_type = "lower"
+        if total > 0.55:
+            cloth_type = "overall"   # بيملا معظم الصورة
+        elif top_pct > bot_pct * 1.4:
+            cloth_type = "upper"     # الكثافة في الأعلى
+        elif bot_pct > top_pct * 1.2:
+            cloth_type = "lower"     # الكثافة في الأسفل
         else:
-            cloth_type = "upper"     # default safe
+            cloth_type = "upper"     # default
 
         return {"cloth_type": cloth_type, "method": "color_heuristic"}
 
