@@ -444,6 +444,9 @@
                 if (response.ok) {
                     const userData = await response.json();
                     if (nameEl) nameEl.textContent = userData.username;
+                    if (userData.role === "Admin") {
+                        document.getElementById("adminDashboardBtn")?.classList.remove("hidden");
+                    }
                     // لو مش حاطط صورة، نولد واحدة افتراضية بالاسم
                     if (avatarEl && !savedAvatar) {
                         avatarEl.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.username)}&background=8b5cf6&color=fff&bold=true`;
