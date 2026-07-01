@@ -1112,10 +1112,283 @@ async def contact(
     fm = FastMail(conf)
 
     await fm.send_message(message)
+    
 
     return {
         "message": "Message sent successfully."
     }
 
+
+# ============================================================
+# ADMIN — Users
+# ============================================================
+ 
+@app.get("/admin/users")
+def get_all_users(
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """جلب كل المستخدمين — Admin only"""
+    users = db.execute(select(users_table)).fetchall()
+    return [
+        {
+            "id":          u.Id,
+            "username":    u.Username,
+            "email":       u.Email,
+            "role":        u.Role,
+            "is_verified": u.IsVerified,
+            "created_at":  str(u.CreatedAt) if u.CreatedAt else None
+        }
+        for u in users
+    ]
+ 
+ 
+@app.delete("/admin/users/{user_id}")
+def admin_delete_user(
+    user_id: int,
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """مسح مستخدم بالـ ID — Admin only"""
+    user = db.execute(
+        select(users_table).where(users_table.c.Id == user_id)
+    ).fetchone()
+ 
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+ 
+    # مسح صور المستخدم أولاً لتجنب FK error
+    db.execute(
+        user_images_table.delete()
+        .where(user_images_table.c.UserId == user_id)
+    )
+    db.execute(
+        users_table.delete()
+        .where(users_table.c.Id == user_id)
+    )
+    db.commit()
+    return {"message": "User deleted successfully"}
+ 
+ 
+# ============================================================
+# ADMIN — Contact Messages
+# ============================================================
+ 
+@app.get("/admin/contact-messages")
+def get_all_contact_messages(
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """جلب كل رسائل التواصل — Admin only"""
+    messages = db.execute(select(contact_messages_table)).fetchall()
+    return [
+        {
+            "id":         m.Id,
+            "name":       m.Name,
+            "email":      m.Email,
+            "subject":    m.Subject,
+            "message":    m.Message,
+            "created_at": str(m.CreatedAt) if m.CreatedAt else None
+        }
+        for m in messages
+    ]
+ 
+ 
+@app.delete("/admin/contact-messages/{msg_id}")
+def delete_contact_message(
+    msg_id: int,
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """مسح رسالة تواصل — Admin only"""
+    msg = db.execute(
+        select(contact_messages_table)
+        .where(contact_messages_table.c.Id == msg_id)
+    ).fetchone()
+ 
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+ 
+    db.execute(
+        contact_messages_table.delete()
+        .where(contact_messages_table.c.Id == msg_id)
+    )
+    db.commit()
+    return {"message": "Message deleted successfully"}
+ 
+ 
+# ============================================================
+# Clothes — Public + Admin
+# ============================================================
+ 
+@app.get("/clothes", response_model=list[ClothingResponse])
+def get_clothes(db: Session = Depends(get_db)):
+    """جلب كل الملابس — Public"""
+    clothes = db.execute(select(clothing_table)).fetchall()
+    return [
+        ClothingResponse(
+            id=item.Id,
+            name=item.Name,
+            category=item.Category,
+            brand=item.Brand,
+            price=str(item.Price) if item.Price else None,
+            image_url=item.ImageUrl,
+            size_xs=item.SizeXS or 0,
+            size_s=item.SizeS or 0,
+            size_m=item.SizeM or 0,
+            size_l=item.SizeL or 0,
+            size_xl=item.SizeXL or 0,
+            size_xxl=item.SizeXXL or 0
+        )
+        for item in clothes
+    ]
+ 
+ 
+@app.post("/admin/clothes")
+async def add_clothing(
+    name:     str = Form(...),
+    category: str = Form(...),
+    brand:    str = Form(""),
+    price:    str = Form("0"),
+    size_xs:  int = Form(0),
+    size_s:   int = Form(0),
+    size_m:   int = Form(0),
+    size_l:   int = Form(0),
+    size_xl:  int = Form(0),
+    size_xxl: int = Form(0),
+    file: UploadFile = File(...),
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """إضافة قطعة ملابس جديدة — Admin only"""
+    image_path = save_image(file)
+ 
+    db.execute(
+        clothing_table.insert().values(
+            Name=name,
+            Category=category,
+            Brand=brand,
+            Price=price,
+            ImageUrl=image_path,
+            SizeXS=size_xs,
+            SizeS=size_s,
+            SizeM=size_m,
+            SizeL=size_l,
+            SizeXL=size_xl,
+            SizeXXL=size_xxl
+        )
+    )
+    db.commit()
+    return {"message": "Clothing added successfully"}
+ 
+ 
+@app.delete("/admin/clothes/{cloth_id}")
+def delete_clothing(
+    cloth_id: int,
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """مسح قطعة ملابس — Admin only"""
+    cloth = db.execute(
+        select(clothing_table)
+        .where(clothing_table.c.Id == cloth_id)
+    ).fetchone()
+ 
+    if not cloth:
+        raise HTTPException(status_code=404, detail="Clothing not found")
+ 
+    # مسح الصورة من uploads
+    if cloth.ImageUrl:
+        image_file = cloth.ImageUrl.replace("/uploads/", "")
+        full_path  = os.path.join(UPLOAD_DIR, image_file)
+        if os.path.exists(full_path):
+            os.remove(full_path)
+ 
+    db.execute(
+        clothing_table.delete()
+        .where(clothing_table.c.Id == cloth_id)
+    )
+    db.commit()
+    return {"message": "Clothing deleted successfully"}
+ 
+ 
+@app.put("/admin/clothes/{cloth_id}")
+async def edit_clothing(
+    cloth_id: int,
+    name:     str = Form(...),
+    category: str = Form(...),
+    brand:    str = Form(""),
+    price:    str = Form("0"),
+    size_xs:  int = Form(0),
+    size_s:   int = Form(0),
+    size_m:   int = Form(0),
+    size_l:   int = Form(0),
+    size_xl:  int = Form(0),
+    size_xxl: int = Form(0),
+    file: Optional[UploadFile] = File(None),
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """تعديل قطعة ملابس — Admin only"""
+    cloth = db.execute(
+        select(clothing_table)
+        .where(clothing_table.c.Id == cloth_id)
+    ).fetchone()
+ 
+    if not cloth:
+        raise HTTPException(404, "Clothing not found")
+ 
+    image_path = cloth.ImageUrl
+ 
+    # لو في صورة جديدة، احذف القديمة واحفظ الجديدة
+    if file and file.filename:
+        if image_path:
+            old_file  = image_path.replace("/uploads/", "")
+            full_path = os.path.join(UPLOAD_DIR, old_file)
+            if os.path.exists(full_path):
+                os.remove(full_path)
+        image_path = save_image(file)
+ 
+    db.execute(
+        clothing_table.update()
+        .where(clothing_table.c.Id == cloth_id)
+        .values(
+            Name=name,
+            Category=category,
+            Brand=brand,
+            Price=price,
+            ImageUrl=image_path,
+            SizeXS=size_xs,
+            SizeS=size_s,
+            SizeM=size_m,
+            SizeL=size_l,
+            SizeXL=size_xl,
+            SizeXXL=size_xxl
+        )
+    )
+    db.commit()
+    return {"message": "Clothing updated successfully"}
+ 
+ 
+# ============================================================
+# ADMIN — Change User Role
+# ============================================================
+ 
+@app.put("/admin/change-role/{user_id}")
+def change_role(
+    user_id: int,
+    data: ChangeRole,
+    admin=Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """تغيير Role لأي مستخدم — Admin only"""
+    db.execute(
+        users_table.update()
+        .where(users_table.c.Id == user_id)
+        .values(Role=data.role)
+    )
+    db.commit()
+    return {"message": f"Role changed to {data.role} successfully"}
+ 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
