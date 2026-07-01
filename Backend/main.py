@@ -171,7 +171,7 @@ class UserResponse(BaseModel):
     username: str
     email: str
     role: str
-    created_at: datetime.datetime
+    created_at: Optional[datetime.datetime] = None 
 
 #  Image Model 
 class UserImagesResponse(BaseModel):
