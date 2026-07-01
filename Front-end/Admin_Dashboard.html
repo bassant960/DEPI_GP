@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VWear Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src = "Admin_Dashboard.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass {
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.4);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        }
+        .bg-mesh {
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #fdf4ff 100%);
+        }
+        .active-tab { background: #9333ea; color: #fff; }
+        .float-1 { animation: float 6s ease-in-out infinite; }
+        .float-2 { animation: float 7s ease-in-out infinite reverse; }
+        @keyframes float {
+            0%,100% { transform: translateY(0px); }
+            50%      { transform: translateY(-20px); }
+        }
+    </style>
+</head>
+<body class="bg-mesh min-h-screen">
+
+<!-- ════════════════════════════════════════════════════════════
+     LOGIN MODAL
+════════════════════════════════════════════════════════════ -->
+<div id="loginModal"
+     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="glass p-8 rounded-2xl w-[400px] shadow-2xl">
+
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">V</div>
+            <span class="text-2xl font-bold text-gray-900">VWear <span class="text-purple-600">Admin</span></span>
+        </div>
+
+        <h3 class="text-lg font-semibold text-gray-700 mb-4">Sign in to Dashboard</h3>
+
+        <input id="adminEmail" type="email" placeholder="Admin Email"
+               class="w-full px-4 py-3 rounded-xl border bg-white/70 outline-none mb-3 focus:border-purple-400">
+
+        <input id="adminPassword" type="password" placeholder="Password"
+               class="w-full px-4 py-3 rounded-xl border bg-white/70 outline-none mb-2 focus:border-purple-400"
+               onkeydown="if(event.key==='Enter') adminLogin()">
+
+        <p id="loginError" class="text-red-500 text-sm mb-3 min-h-[20px]"></p>
+
+        <button onclick="adminLogin()"
+                class="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition">
+            Sign In
+        </button>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     MAIN CONTENT (hidden until logged in)
+════════════════════════════════════════════════════════════ -->
+<div id="mainContent" class="hidden flex min-h-screen">
+
+    <!-- SIDEBAR -->
+    <aside class="w-72 h-screen fixed left-0 top-0 glass p-6 flex flex-col gap-2">
+
+        <a href="VWearHomeP.html" class="flex items-center gap-2 mb-4 cursor-pointer no-underline">
+    <div class="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-500 rounded-xl flex items-center justify-center text-white font-bold text-xl">V</div>
+    <span class="font-bold text-2xl tracking-tight text-gray-900">V<span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500">Wear</span></span>
+</a>
+
+        <button onclick="showTab('dashboard', this)" class="tab active-tab p-3 rounded-xl text-left font-medium"> Dashboard</button>
+        <button onclick="showTab('users', this)"     class="tab p-3 rounded-xl text-left font-medium text-gray-700 hover:bg-white/60"> Users</button>
+        <button onclick="showTab('clothes', this)"   class="tab p-3 rounded-xl text-left font-medium text-gray-700 hover:bg-white/60"> Clothes</button>
+        <button onclick="showTab('contact', this)"   class="tab p-3 rounded-xl text-left font-medium text-gray-700 hover:bg-white/60"> Contact Messages</button>
+       
+
+        <div class="mt-auto">
+            <p class="text-gray-500 text-sm mb-1">Logged in as</p>
+            <p id="adminName" class="font-semibold text-gray-800 mb-3">Admin</p>
+            <button onclick="logout()" class="w-full py-2 bg-red-100 text-red-600 rounded-xl font-medium hover:bg-red-200 transition">
+                Sign Out
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <main class="ml-72 w-full p-8">
+
+        <!-- TOPBAR -->
+        <div class="glass p-4 rounded-2xl flex justify-between items-center mb-8">
+            <h2 class="text-xl font-bold" id="pageTitle">Dashboard</h2>
+            <div class="flex items-center gap-4">
+                <input id="globalSearch" placeholder="Search..."
+                    class="px-4 py-2 rounded-xl border border-white/50 bg-white/60 outline-none"/>
+                <div class="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold">A</div>
+            </div>
+        </div>
+
+        <!-- ─── DASHBOARD ──────────────────────────────────── -->
+        <section id="dashboard" class="tab-content">
+            <div class="grid grid-cols-4 gap-6">
+                <div class="glass p-6 rounded-2xl">
+                    <h3 class="text-gray-500 text-sm mb-1">Total Users</h3>
+                    <p class="text-3xl font-bold text-gray-900">—</p>
+                </div>
+                <div class="glass p-6 rounded-2xl">
+                    <h3 class="text-gray-500 text-sm mb-1">Try-Ons</h3>
+                    <p class="text-3xl font-bold text-gray-900">—</p>
+                </div>
+                <div class="glass p-6 rounded-2xl">
+                    <h3 class="text-gray-500 text-sm mb-1">Clothes</h3>
+                    <p class="text-3xl font-bold text-gray-900">—</p>
+                </div>
+                <div class="glass p-6 rounded-2xl">
+                    <h3 class="text-gray-500 text-sm mb-1">Messages</h3>
+                    <p class="text-3xl font-bold text-gray-900">—</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── USERS ──────────────────────────────────────── -->
+        <section id="users" class="tab-content hidden">
+            <div class="glass p-6 rounded-2xl">
+                <h3 class="text-xl font-bold mb-4">Users Management</h3>
+
+                <input id="userSearch" onkeyup="searchUsers()" placeholder="Search by name or email..."
+                    class="w-full px-4 py-3 rounded-xl bg-white/60 border outline-none mb-4">
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-gray-500 text-sm border-b">
+                                <th class="p-2 pb-3">Name</th>
+                                <th class="pb-3">Email</th>
+                                <th class="pb-3">Status</th>
+                                <th class="pb-3">Role</th>
+                                <th class="pb-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTable">
+                            <tr><td colspan="5" class="text-center py-8 text-gray-400">Loading users...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── CLOTHES ────────────────────────────────────── -->
+        <section id="clothes" class="tab-content hidden">
+
+            <div class="glass p-6 rounded-2xl mb-6 flex justify-between items-center">
+                <h3 class="text-xl font-bold">Clothes Management</h3>
+                <button onclick="showAddClothingModal()"
+                    class="px-5 py-2 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition">
+                    + Add Clothing
+                </button>
+            </div>
+
+            <div id="clothesGrid" class="grid grid-cols-3 gap-6">
+                <p class="text-gray-400 col-span-3 text-center py-10">Loading clothes...</p>
+            </div>
+        </section>
+
+        <!-- ─── CONTACT ────────────────────────────────────── -->
+        <section id="contact" class="tab-content hidden">
+            <div class="glass p-6 rounded-2xl">
+                <h3 class="text-xl font-bold mb-4">Contact Messages</h3>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-gray-500 text-sm border-b">
+                                <th class="p-2 pb-3">Name</th>
+                                <th class="pb-3">Email</th>
+                                <th class="pb-3">Subject</th>
+                                <th class="pb-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactTable">
+                            <tr><td colspan="4" class="text-center py-8 text-gray-400">Loading messages...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── REPORTS ────────────────────────────────────── --
+       
+<!-- ════════════════════════════════════════════════════════════
+     VIEW MESSAGE MODAL
+════════════════════════════════════════════════════════════ -->
+<div id="messageModal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div class="glass p-6 rounded-2xl w-[460px]">
+        <h3 class="font-bold text-lg mb-3">Message Details</h3>
+        <p id="msgContent" class="text-gray-700 mb-5 leading-relaxed"></p>
+        <button onclick="closeModal()" class="w-full bg-gray-700 text-white py-2 rounded-xl hover:bg-gray-800 transition">
+            Close
+        </button>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     ADD CLOTHING MODAL
+════════════════════════════════════════════════════════════ -->
+<div id="addClothingModal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div class="glass p-6 rounded-2xl w-[480px]">
+        <h3 class="font-bold text-xl mb-5">Add New Clothing</h3>
+
+        <form id="addClothingForm" onsubmit="return false;">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="col-span-2">
+                    <label class="text-sm text-gray-600 mb-1 block">Name *</label>
+                    <input id="clothName" type="text" placeholder="e.g. Black T-Shirt"
+                        class="w-full px-4 py-2 rounded-xl border bg-white/70 outline-none focus:border-purple-400">
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-600 mb-1 block">Category *</label>
+                    <select id="clothCategory"
+                        class="w-full px-4 py-2 rounded-xl border bg-white/70 outline-none focus:border-purple-400">
+                        <option value="">Select Category</option>
+                        <option value="upper_body">Upper Body</option>
+                        <option value="lower_body">Lower Body</option>
+                        <option value="overall">Overall / Dress</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-600 mb-1 block">Brand</label>
+                    <input id="clothBrand" type="text" placeholder="e.g. Zara"
+                        class="w-full px-4 py-2 rounded-xl border bg-white/70 outline-none focus:border-purple-400">
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-600 mb-1 block">Price ($)</label>
+                    <input id="clothPrice" type="number" placeholder="0.00" min="0" step="0.01"
+                        class="w-full px-4 py-2 rounded-xl border bg-white/70 outline-none focus:border-purple-400">
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-600 mb-1 block">Image *</label>
+                    <input id="clothImage" type="file" accept="image/*"
+                        class="w-full px-3 py-2 rounded-xl border bg-white/70 text-sm">
+                </div>
+            </div>
+        </form>
+
+        <div class="flex gap-3 mt-4">
+            <button onclick="closeAddClothingModal()"
+                class="flex-1 py-2 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition">
+                Cancel
+            </button>
+            <button id="addClothingBtn" onclick="submitAddClothing()"
+                class="flex-1 py-2 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition">
+                Add Clothing
+            </button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
