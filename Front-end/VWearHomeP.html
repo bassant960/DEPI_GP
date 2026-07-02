@@ -101,19 +101,45 @@
                     <a href="#how-it-works"
                         class="nav-link text-gray-600 hover:text-brand-600 font-semibold transition-colors">How it
                         Works</a>
+                    <a href="about.html" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">About</a>
                     <a href="#contact"
                         class="nav-link text-gray-600 hover:text-brand-600 font-semibold transition-colors">Contact
                         Us</a>
                 </div>
 
-                <!-- Auth Buttons -->
-                <div class="hidden md:flex items-center space-x-4">
-                    <button class="text-gray-800 hover:text-brand-600 font-semibold px-4 py-2 transition-colors">
+                <!-- Auth Buttons — guest (hidden when logged in) -->
+                <div id="login-buttons" class="hidden md:flex items-center space-x-4">
+                    <a href="vwear_login.html" class="text-gray-800 hover:text-brand-600 font-semibold px-4 py-2 transition-colors">
                         Login
-                    </button>
-                    <button
+                    </a>
+                    <a href="vwear_signup.html"
                         class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 shadow-md shadow-brand-500/20">
                         Sign Up
+                    </a>
+                </div>
+
+                <!-- User Menu — logged in (hidden when guest) -->
+                <div id="user-menu" class="hidden items-center gap-3">
+                    <!-- Avatar -->
+                    <img id="home-avatar"
+                        src="https://ui-avatars.com/api/?name=U&background=8b5cf6&color=fff&bold=true"
+                        class="w-9 h-9 rounded-full object-cover border-2 border-brand-500 cursor-pointer"
+                        alt="avatar">
+                    <!-- Username -->
+                    <span id="home-username" class="font-semibold text-gray-800 text-sm"></span>
+                    <!-- Try On -->
+                    <a href="TryOnPageDemo.html"
+                        class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-5 py-2 rounded-full font-semibold text-sm transition-all duration-300 shadow-md shadow-brand-500/20">
+                        Try On ✨
+                    </a>
+                    <a id="adminDashboardBtn" href="Admin_Dashboard.html"
+                    class="hidden px-4 py-2 bg-purple-600 text-white rounded-full font-semibold text-sm hover:bg-purple-700 transition-all">
+                    🛠 Admin
+                     </a>
+                    <!-- Logout -->
+                    <button onclick="handleLogout()"
+                        class="text-gray-500 hover:text-red-500 text-sm font-medium transition-colors">
+                        Logout
                     </button>
                 </div>
             </div>
@@ -168,20 +194,23 @@
             </p>
 
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                    class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2 group">
-                    Try it Now
-                    <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
+                <a href="javascript:void(0)" 
+                     onclick="handleTryItNow()"
+                     class="bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2 group">
+                     Try it Now
+                     <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none"
+                         stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
                     </svg>
-                </button>
+                </a>
+
+   
                 <a href="#how-it-works"
                     class="glass-card hover:bg-white/90 text-gray-900 px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2">
-                    How it works?
-                </a>
-            </div>
+                   How it works?
+                 </a>
+            </div>              
         </div>
     </section>
 
@@ -268,32 +297,31 @@
             <div class="glass-card rounded-3xl p-10 md:p-14">
                 <div class="text-center mb-10">
                     <h2 class="text-3xl font-bold text-gray-900 mb-4">Have a Question? Contact Us</h2>
-                    <p class="text-gray-700 font-medium">Our team is ready to answer all your questions about the
-                        project or platform.</p>
+                    <p class="text-gray-700 font-medium">Our team is ready to answer all your questions about the project or platform.</p>
                 </div>
 
-                <form class="space-y-6">
+                <form id="contactForm" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-bold text-gray-800 mb-2">Full Name</label>
-                            <input type="text"
+                            <input type="text" id="contact-name"
                                 class="w-full px-5 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 focus:bg-white outline-none transition-all shadow-sm"
                                 placeholder="Enter your name">
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-gray-800 mb-2">Email Address</label>
-                            <input type="email"
+                            <label class="block text-sm font-bold text-gray-800 mb-2">Email Address <span class="text-red-500">*</span></label>
+                            <input type="email" id="contact-email" required
                                 class="w-full px-5 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 focus:bg-white outline-none transition-all shadow-sm"
                                 placeholder="example@email.com">
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-gray-800 mb-2">Message</label>
-                        <textarea rows="4"
+                        <label class="block text-sm font-bold text-gray-800 mb-2">Message <span class="text-red-500">*</span></label>
+                        <textarea id="contact-message" rows="4" required
                             class="w-full px-5 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 focus:bg-white outline-none transition-all shadow-sm resize-none"
                             placeholder="Type your message here..."></textarea>
                     </div>
-                    <button type="button"
+                    <button type="submit" id="sendMessageBtn"
                         class="w-full bg-gradient-to-r from-brand-600 to-accent-500 hover:opacity-90 text-white font-bold py-4 rounded-xl transition-all duration-300 shadow-lg shadow-brand-500/20">
                         Send Message
                     </button>
@@ -301,7 +329,6 @@
             </div>
         </div>
     </section>
-
     <!-- Footer -->
     <footer class="bg-white/40 backdrop-blur-md border-t border-white/50 py-10 text-center relative z-10">
         <div class="max-w-7xl mx-auto px-4">
@@ -316,6 +343,141 @@
     </footer>
 
     <script src="script.js"></script>
+    <script>
+        function handleTryItNow() {
+            const token = localStorage.getItem('token'); 
+            
+        //Check if already loged in
+                if (token) {
+        window.location.href = 'TryOnPageDemo.html'; 
+                }
+                 else {
+        window.location.href = 'vwear_login.html'; 
+    }
+}
+// سكريبت الـ Contact Us 
+        document.addEventListener('DOMContentLoaded', () => {
+            const contactForm = document.getElementById("contactForm");
+            
+            if (contactForm) {
+                contactForm.addEventListener("submit", async function (e) {
+                    e.preventDefault(); // ده السطر السحري اللي بيمنع الريفرش
+
+                    const submitBtn = document.getElementById("sendMessageBtn");
+                    const originalText = submitBtn.innerText;
+                    
+                    submitBtn.innerText = "Sending...";
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add("opacity-70", "cursor-not-allowed");
+
+                    try {
+                        const response = await fetch("http://127.0.0.1:8000/contact", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                name: document.getElementById("contact-name").value || "VWear Guest",
+                                email: document.getElementById("contact-email").value,
+                                subject: "New Message from VWear Website",
+                                message: document.getElementById("contact-message").value
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            alert("Message sent successfully!");
+                            contactForm.reset(); 
+                        } else {
+                            alert("Error: " + (data.detail || "Failed to send message"));
+                        }
+                    } catch (error) {
+                        alert("Network error. Check if FastAPI is running!");
+                        console.error("Contact Form Error:", error);
+                    } finally {
+                        submitBtn.innerText = originalText;
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove("opacity-70", "cursor-not-allowed");
+                    }
+                });
+            }
+        });
+        document.addEventListener('DOMContentLoaded', async () => {
+        // 1. جلب البيانات من الـ Local Storage
+        const token = localStorage.getItem('token');
+        // بيقرأ بـ key بتاع الـ vwear أو الـ fallback
+        const savedUsername = localStorage.getItem('vwear_name') || localStorage.getItem('username');
+        const savedAvatar   = localStorage.getItem('vwear_avatar') || localStorage.getItem('profileImage');
+        
+        // 2. جلب عناصر الـ HTML
+        const loginButtons = document.getElementById('login-buttons');
+        const userMenu = document.getElementById('user-menu');
+        
+        if (token) {
+            console.log("User is logged in! Token found.");
+            
+            // إخفاء زراير تسجيل الدخول تماماً بـ Style صريح
+            if (loginButtons) {
+                loginButtons.style.setProperty('display', 'none', 'important');
+            }
+            
+            // إظهار منيو المستخدم
+            if (userMenu) {
+                userMenu.style.setProperty('display', 'flex', 'important');
+            }
+
+            // تحديث الاسم والصورة فوراً من الـ Local Storage عشان نكسب وقت والصفحة متأخرش
+            const nameEl = document.getElementById('home-username');
+            if (nameEl && savedUsername) nameEl.textContent = savedUsername;
+
+            const avatarEl = document.getElementById('home-avatar');
+            if (avatarEl && savedAvatar) avatarEl.src = savedAvatar;
+
+            // تحديث البيانات من السيرفر (تأكيد)
+            try {
+                const response = await fetch('http://127.0.0.1:8000/profile', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    if (nameEl) nameEl.textContent = userData.username;
+                    if (userData.role === "Admin") {
+                        document.getElementById("adminDashboardBtn")?.classList.remove("hidden");
+                    }
+                    // لو مش حاطط صورة، نولد واحدة افتراضية بالاسم
+                    if (avatarEl && !savedAvatar) {
+                        avatarEl.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.username)}&background=8b5cf6&color=fff&bold=true`;
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching profile on homepage:", error);
+            }
+        } else {
+            console.log("No token found. User is guest.");
+            if (loginButtons) loginButtons.style.display = 'flex';
+            if (userMenu) userMenu.style.setProperty('display', 'none', 'important');
+        }
+    });
+
+    async function handleLogout() {
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                await fetch('http://127.0.0.1:8000/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) { console.warn('Logout request failed:', e); }
+        }
+        // امسح كل بيانات الـ session
+        ['token','vwear_name','vwear_email','vwear_avatar','username','profileImage']
+            .forEach(k => localStorage.removeItem(k));
+        window.location.href = 'vwear_login.html';
+    }
+</script>
 </body>
 
 </html>

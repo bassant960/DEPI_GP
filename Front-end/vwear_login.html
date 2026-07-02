@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign Up - VWear</title>
+<title>Login - VWear</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -40,8 +40,8 @@ tailwind.config = {
 <div class="glass-card rounded-3xl p-6 sm:p-10 w-full max-w-md shadow-xl">
     <div class="text-center mb-6 sm:mb-8">
         <div class="w-12 h-12 mx-auto bg-gradient-to-r from-brand-600 to-accent-500 text-white flex items-center justify-center rounded-xl text-xl font-bold">V</div>
-        <h2 class="text-xl sm:text-2xl font-bold mt-4">Create Account</h2>
-        <p class="text-gray-600 text-sm sm:text-base">Sign up to get started</p>
+        <h2 class="text-xl sm:text-2xl font-bold mt-4">Welcome Back</h2>
+        <p class="text-gray-600 text-sm sm:text-base">Login to your account</p>
     </div>
 
     <button class="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 py-3 rounded-xl font-semibold hover:bg-gray-50 transition mb-5">
@@ -60,76 +60,94 @@ tailwind.config = {
         <div class="flex-grow h-px bg-gray-300"></div>
     </div>
 
-    <form class="space-y-4" id="signupForm">
+    <form class="space-y-4" id="loginForm">
 
-        <input type="text" id="regName" placeholder="Full Name" required
+        <input type="email" id="logEmail" placeholder="Email" required
             class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none text-sm sm:text-base">
 
-        <input type="email" id="regEmail" placeholder="Email" required
+        <input type="password" id="logPass" placeholder="Password" required
             class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none text-sm sm:text-base">
 
-        <input type="password" id="regPass" placeholder="Password" required minlength="6"
-            class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none text-sm sm:text-base">
-
-        <input type="password" id="regConfirmPass" placeholder="Confirm Password" required minlength="6"
-            class="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/80 focus:ring-2 focus:ring-brand-500 outline-none text-sm sm:text-base">
+        <div class="flex justify-between text-xs sm:text-sm">
+            <label class="flex items-center gap-2"><input type="checkbox" id="logRemember"> Remember me</label>
+            
+            <a href="#" id="forgotPassBtn" class="text-brand-600">Forgot Your Password?</a>
+        </div>
 
         <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-accent-500 text-white py-3 rounded-xl font-bold hover:opacity-90 transition">
-            Sign Up
+            Login
         </button>
     </form>
 
-    <p class="text-center text-sm mt-5">
-        Already have an account? 
-        <a href="vwear_login.html" class="text-brand-600 font-semibold hover:underline">Login</a>
+    <p class="text-center text-xs sm:text-sm mt-5">
+        Don't have an account? <a href="vwear_signup.html" class="text-brand-600 font-semibold hover:underline">Sign up</a>
     </p>
-
 </div>
 
 <script>
-    document.getElementById('signupForm').addEventListener('submit', async (e) => {
-        e.preventDefault(); // بيمنع الريفريش
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault(); // بيمنع الريفريش المزعج
 
-        const name = document.getElementById('regName').value;
-        const email = document.getElementById('regEmail').value;
-        const password = document.getElementById('regPass').value;
-        const confirmPassword = document.getElementById('regConfirmPass').value;
-
-        // 1. التأكد إن الباسوورد متطابق
-        if (password !== confirmPassword) {
-            alert("❌ Passwords do not match!");
-            return;
-        }
+        const email = document.getElementById('logEmail').value;
+        const password = document.getElementById('logPass').value;
+        // 🔥 1. السطر الجديد: بيشوف اليوزر معلم على الـ checkbox ولا لأ (true أو false)
+        const rememberMe = document.getElementById('logRemember').checked; 
 
         try {
-            // 2. إرسال البيانات للباك اند
-            const response = await fetch('http://127.0.0.1:8000/signup', {
+            const response = await fetch('http://127.0.0.1:8000/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username: name,
-                    email: email,
-                    password: password
-                })
+                // 🔥 2. هنا ضفنا الـ remember_me جوه الـ body عشان تتبعت للباك إند
+                body: JSON.stringify({ email: email, password: password, remember_me: rememberMe })
             });
 
             const data = await response.json();
 
-            // 3. لو فيه خطأ (مثلا الإيميل متسجل قبل كده)
             if (!response.ok) {
                 alert(data.detail);
                 return;
             }
 
-            // 4. لو نجح (هيعرض رسالة الباك اند اللي بتقوله روح فعل الإيميل)
-            alert("🎉 " + data.message);
+            // حفظ بيانات المستخدم
+            localStorage.setItem("vwear_name", data.username);
+            localStorage.setItem("vwear_email", email);
+            localStorage.setItem("token", data.token);
 
-            // 5. التوجيه لصفحة اللوجين عشان يسجل دخول بعد التفعيل
-            window.location.href = 'vwear_login.html';
+            alert("🎉 Login Successful!");
+
+            // التوجيه لصفحتك الرئيسية بعد النجاح
+            window.location.href = 'dashboard.html';
 
         } catch (error) {
             console.error(error);
-            alert("Server Error. Please check if the backend is running.");
+            alert("Server Error");
+        }
+    });
+
+    // 🔥 3. كود زرار نسيت كلمة المرور الجديد بالكامل
+    document.getElementById('forgotPassBtn').addEventListener('click', async (e) => {
+        e.preventDefault(); // بيمنع اللينك يفتح صفحة فاضية
+        
+        // بيفتح نافذة صغيرة تسأل اليوزر عن إيميله
+        const email = prompt("Please enter your email to reset your password:");
+        
+        if (email) { // لو اليوزر كتب الإيميل وداس OK
+            try {
+                const response = await fetch('http://127.0.0.1:8000/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert("✅ " + data.message);
+                } else {
+                    alert("❌ " + data.detail);
+                }
+            } catch (error) {
+                alert("Server Error. Please try again.");
+            }
         }
     });
 </script>
