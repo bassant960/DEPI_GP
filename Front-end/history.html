@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Try-On History — VWear</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg,#f5f3ff,#fdf4ff); min-height:100vh; }
+    .glass { background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.8); }
+</style>
+</head>
+<body>
+
+    <!-- Top bar -->
+    <nav class="w-full bg-white/50 backdrop-blur-md border-b border-white/50 h-20 flex items-center">
+        <div class="max-w-screen-xl mx-auto w-full px-6 flex items-center justify-between">
+            <a href="dashboard.html" class="flex items-center gap-2 text-brand-600 font-bold text-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                Back to Dashboard
+            </a>
+            <a href="TryOnPageDemo.html" class="bg-gradient-to-r from-purple-600 to-pink-500 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-md hover:opacity-90 transition">
+                Start New Try-On →
+            </a>
+        </div>
+    </nav>
+
+    <main class="max-w-screen-xl mx-auto px-6 py-10">
+        <div class="flex items-end justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-extrabold text-gray-900">Try-On History</h1>
+                <p id="history-subtitle" class="text-sm text-gray-500 mt-1">Loading…</p>
+            </div>
+        </div>
+
+        <!-- Loading state -->
+        <div id="loading-state" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div class="aspect-[3/4] rounded-2xl bg-white/50 animate-pulse"></div>
+            <div class="aspect-[3/4] rounded-2xl bg-white/50 animate-pulse"></div>
+            <div class="aspect-[3/4] rounded-2xl bg-white/50 animate-pulse"></div>
+            <div class="aspect-[3/4] rounded-2xl bg-white/50 animate-pulse"></div>
+            <div class="aspect-[3/4] rounded-2xl bg-white/50 animate-pulse"></div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="hidden flex-col items-center justify-center text-center py-20">
+            <div class="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center mb-4">
+                <svg class="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <p class="font-semibold text-gray-700 mb-1">No try-ons yet</p>
+            <p class="text-sm text-gray-500 mb-4">Everything you generate will show up here.</p>
+            <a href="TryOnPageDemo.html" class="bg-gradient-to-r from-purple-600 to-pink-500 text-white font-bold px-5 py-2.5 rounded-full text-sm shadow-md">Start your first Try-On</a>
+        </div>
+
+        <!-- Error state -->
+        <div id="error-state" class="hidden text-center py-20">
+            <p class="text-red-500 font-semibold">Couldn't load your history. Please check your connection and try again.</p>
+        </div>
+
+        <!-- Results grid -->
+        <div id="history-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"></div>
+    </main>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+            window.location.href = 'vwear_login.html';
+        }
+
+        const CLOTH_TYPE_LABELS = { upper: 'Upper', lower: 'Lower', overall: 'Overall' };
+
+        function formatDate(isoLike) {
+            const d = new Date(isoLike);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function renderCard(item) {
+            const label = CLOTH_TYPE_LABELS[item.cloth_type] || item.cloth_type || '';
+            return `
+                <div class="glass rounded-2xl overflow-hidden group relative">
+                    <div class="aspect-[3/4] bg-white/40">
+                        <img src="${item.url}" alt="Try-on result" class="w-full h-full object-cover" loading="lazy">
+                    </div>
+                    <div class="p-3 flex items-center justify-between">
+                        <span class="text-[11px] text-gray-500">${formatDate(item.created_at)}</span>
+                        ${label ? `<span class="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">${label}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadHistory() {
+            const loadingEl = document.getElementById('loading-state');
+            const emptyEl   = document.getElementById('empty-state');
+            const errorEl   = document.getElementById('error-state');
+            const gridEl    = document.getElementById('history-grid');
+            const subtitle  = document.getElementById('history-subtitle');
+
+            try {
+                const res = await fetch(`${API_BASE}/history`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (!res.ok) throw new Error('request failed');
+
+                const data = await res.json();
+                loadingEl.classList.add('hidden');
+
+                if (!data.items || data.items.length === 0) {
+                    emptyEl.classList.remove('hidden');
+                    emptyEl.classList.add('flex');
+                    subtitle.textContent = '0 try-ons';
+                    return;
+                }
+
+                subtitle.textContent = `${data.count} try-on${data.count === 1 ? '' : 's'}`;
+                gridEl.innerHTML = data.items.map(renderCard).join('');
+                gridEl.classList.remove('hidden');
+                gridEl.classList.add('grid');
+
+            } catch (err) {
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                console.error('Failed to load history:', err);
+            }
+        }
+
+        loadHistory();
+    </script>
+</body>
+</html>

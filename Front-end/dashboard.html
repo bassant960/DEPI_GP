@@ -330,9 +330,8 @@
                         <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center">
                             <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                         </div>
-                        <span class="text-xs text-green-500 font-bold bg-green-50 px-2 py-0.5 rounded-full">+12%</span>
                     </div>
-                    <p class="text-2xl font-extrabold text-gray-900">3</p>
+                    <p id="stat-total-tryons" class="text-2xl font-extrabold text-gray-900">—</p>
                     <p class="text-xs text-gray-500 font-medium mt-1">Total Try-Ons</p>
                 </div>
                 <div class="stat-card glass rounded-2xl p-5">
@@ -392,7 +391,7 @@
                 <div class="glass rounded-2xl p-6 lg:col-span-2">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="font-bold text-gray-900">Recent Try-Ons</h2>
-                        <a href="TryOnPageDemo.html" class="text-sm text-brand-600 font-semibold hover:underline">View All</a>
+                        <a href="history.html" class="text-sm text-brand-600 font-semibold hover:underline">View All</a>
                     </div>
                     <div id="history-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-3">
                         <div class="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 bg-white/40 cursor-pointer hover:bg-white/60 transition" onclick="window.location.href='TryOnPageDemo.html'">
@@ -502,6 +501,47 @@
     }
 
     loadUser();
+
+    // ── Real try-on count + recent history (replaces hardcoded numbers) ──
+    const API_BASE = 'http://127.0.0.1:8000';
+    const CLOTH_TYPE_LABELS = { upper: 'Upper', lower: 'Lower', overall: 'Overall' };
+
+    async function loadTryOnStats() {
+        const statEl = document.getElementById('stat-total-tryons');
+        const gridEl = document.getElementById('history-grid');
+
+        try {
+            const res = await fetch(`${API_BASE}/history`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('request failed');
+
+            const data = await res.json();
+            statEl.textContent = data.count;
+
+            const recent = data.items.slice(0, 7);
+            const cardsHTML = recent.map(item => {
+                const label = CLOTH_TYPE_LABELS[item.cloth_type] || '';
+                return `
+                    <a href="history.html" class="aspect-square rounded-xl overflow-hidden relative block group">
+                        <img src="${item.url}" alt="Try-on result" class="w-full h-full object-cover">
+                        ${label ? `<span class="absolute bottom-1 right-1 text-[9px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded-full">${label}</span>` : ''}
+                    </a>
+                `;
+            }).join('');
+
+            // keep the existing "New / start a try-on" tile, prepend real results before it
+            const newTile = gridEl.querySelector('.border-dashed');
+            gridEl.innerHTML = cardsHTML;
+            if (newTile) gridEl.appendChild(newTile);
+
+        } catch (err) {
+            statEl.textContent = '0';
+            console.error('Failed to load try-on stats:', err);
+        }
+    }
+
+    loadTryOnStats();
 
     // ── Avatar upload (modal) ──
     function handleAvatarUpload(e) {

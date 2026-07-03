@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Text, create_engine, MetaData, Table, Column, Integer, String, DateTime, select
+from sqlalchemy import Text, create_engine, MetaData, Table, Column, Integer, Float, String, DateTime, select
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import jwt, JWTError
@@ -72,6 +72,31 @@ user_images_table = Table(
     Column('RightImage', String(500), nullable=True),
     Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)))
 
+# stores every try-on result so history/count can be queried later
+generated_images_table = Table(
+    'GeneratedImages', metadata,
+    Column('Id', Integer, primary_key=True, autoincrement=True),
+    Column('UserId', Integer, nullable=False),
+    Column('GeneratedImagePath', String(500), nullable=False),
+    Column('ClothType', String(20), nullable=True),
+    Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+)
+
+# body measurements + computed recommended sizes (recommendation only, not fed to CatVTON)
+measurements_table = Table(
+    'Measurements', metadata,
+    Column('Id', Integer, primary_key=True, autoincrement=True),
+    Column('UserId', Integer, nullable=False, unique=True),
+    Column('Height', Float, nullable=True),
+    Column('Weight', Float, nullable=True),
+    Column('Chest', Float, nullable=True),
+    Column('Waist', Float, nullable=True),
+    Column('Hips', Float, nullable=True),
+    Column('RecommendedTopSize', String(10), nullable=True),
+    Column('RecommendedBottomSize', String(10), nullable=True),
+    Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+)
+
 contact_messages_table = Table(
     "ContactMessages",metadata,
 
@@ -89,6 +114,24 @@ blacklist_table = Table(
     Column('Id', Integer, primary_key=True, autoincrement=True),
     Column('Token', String(1000), nullable=False)
 )
+# admin-managed catalog of clothing items (was referenced but never defined originally)
+clothing_table = Table(
+    'ClothingCatalog', metadata,
+    Column('Id', Integer, primary_key=True, autoincrement=True),
+    Column('Name', String(100), nullable=False),
+    Column('Category', String(50), nullable=True),
+    Column('Brand', String(100), nullable=True),
+    Column('SizeXS', Integer, default=0),
+    Column('SizeS', Integer, default=0),
+    Column('SizeM', Integer, default=0),
+    Column('SizeL', Integer, default=0),
+    Column('SizeXL', Integer, default=0),
+    Column('SizeXXL', Integer, default=0),
+    Column('Price', String(20), nullable=True),
+    Column('ImageUrl', String(500), nullable=True),
+    Column('CreatedAt', DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+)
+
 metadata.create_all(bind=engine)
 
 # ============================================================
@@ -180,6 +223,28 @@ class UserImagesResponse(BaseModel):
     back_image: Optional[str]
     left_image: Optional[str]
     right_image: Optional[str]
+
+class MeasurementsInput(BaseModel):
+    height: float
+    weight: float
+    chest: float
+    waist: float
+    hips: float
+
+# response shape for GET /clothes — was referenced but never defined originally
+class ClothingResponse(BaseModel):
+    id: int
+    name: str
+    category: Optional[str] = None
+    brand: Optional[str] = None
+    price: Optional[str] = None
+    image_url: Optional[str] = None
+    size_xs: int = 0
+    size_s: int = 0
+    size_m: int = 0
+    size_l: int = 0
+    size_xl: int = 0
+    size_xxl: int = 0
 
 class ContactMessage(BaseModel):
     name: str = "VWear Guest"
@@ -799,29 +864,9 @@ def get_job(job_id: str, user_data=Depends(verify_token)):
 def model_status(user_data=Depends(verify_token)):
     return model.status()
 
-"""
-========================================================
-الكود ده بيحل مشكلة الـ Frontend اللي بيستنى رد فوري
-========================================================
-
-المشكلة الأصلية:
-- الفرونت يبعت request لـ /generate-tryon
-- الباك يرجع {"job_id": "xxx"} فوراً
-- الفرونت مش بيعمل polling → مش بيشوف النتيجة أبداً
-
-الحل:
-- ضيفنا endpoint مباشر /generate-tryon-sync بيستنى الموديل
-- وضيفنا polling endpoint /queue/job/{job_id}/wait للـ async flow
-- الفرونت يختار اللي يناسبه
-
-========================================================
-الكود ده بيتضاف في main.py بعد الـ imports الموجودة
-========================================================
-"""
-
 # ============================================================
-# OPTION A — Synchronous endpoint (الأبسط والمضمون للـ Frontend)
-# بيستبدل /generate-tryon الموجود أو بيتضاف جنبه
+# Try-On generation (sync) — waits for the model, returns the
+# result directly, and logs the result so /history has data
 # ============================================================
 
 @app.post("/generate-tryon-sync")
@@ -831,14 +876,11 @@ async def generate_tryon_sync(
     outfit_file:  Optional[UploadFile] = File(None),
     cloth_type:   str                  = Form("upper"), 
     user_data=Depends(verify_token),
+    db: Session = Depends(get_db),
 ):
-    """
-    ينتظر الموديل يخلص ويرجع النتيجة مباشرة.
-    الفرونت بيستنى (max 3 دقايق) وبعدين يعرض الصورة.
-    """
     email = user_data.get("sub")
 
-    # 1. حفظ صورة الشخص
+    # save the uploaded person photo
     ext      = os.path.splitext(person_image.filename)[1] if person_image.filename else ".jpg"
     filename = f"temp_{uuid.uuid4().hex}{ext}"
     local_path = os.path.join(UPLOAD_DIR, filename)
@@ -846,7 +888,7 @@ async def generate_tryon_sync(
     with open(local_path, "wb") as buf:
         shutil.copyfileobj(person_image.file, buf)
 
-    # 2. تحديد مصدر اللبس
+    # resolve garment source: either an uploaded file or a URL
     final_outfit = outfit_url
 
     if outfit_file and outfit_file.filename:
@@ -856,13 +898,11 @@ async def generate_tryon_sync(
         with open(o_path, "wb") as buf:
             shutil.copyfileobj(outfit_file.file, buf)
         final_outfit = o_path
-    print(f"DEBUG → person: {local_path}")
-    print(f"DEBUG → outfit: {final_outfit}")
+
     if not final_outfit:
         raise HTTPException(400, "Please provide outfit_url or outfit_file")
-    print(f"DEBUG → person: {local_path}")
-    print(f"DEBUG → outfit: {final_outfit}")
-    # 3. شغّل الموديل مباشرة (sync wait)
+
+    # run CatVTON and wait for the result
     try:
         result = await model.run(
             person_image_path=local_path,
@@ -872,7 +912,21 @@ async def generate_tryon_sync(
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    # 4. ارجع الـ URL للفرونت مباشرة
+    # log this generation so it shows up in /history and in the try count
+    db_user = db.execute(
+        select(users_table).where(users_table.c.Email == email)
+    ).fetchone()
+
+    if db_user:
+        db.execute(
+            generated_images_table.insert().values(
+                UserId=db_user.Id,
+                GeneratedImagePath=result["result_url"],
+                ClothType=cloth_type,
+            )
+        )
+        db.commit()
+
     return {
         "success":    True,
         "result_url": result["result_url"],
@@ -881,21 +935,17 @@ async def generate_tryon_sync(
 
 
 # ============================================================
-# OPTION B — الـ endpoint الأصلي Async + polling helper
-# الفرونت بيتصل بـ /generate-tryon → يجيب job_id
-# وبعدين بيعمل polling على /queue/job/{job_id}/wait
+# Async flow: /generate-tryon returns a job_id, frontend polls
+# this endpoint until the job is done
 # ============================================================
 
 @app.get("/queue/job/{job_id}/wait")
 async def wait_for_job(job_id: str, user_data=Depends(verify_token)):
-    """
-    Long-polling: يستنى لحد ما الـ job يخلص (max 200 ثانية).
-    الفرونت يتصل بيه مرة واحدة بعد /generate-tryon.
-    """
+    """Long-polls a queued job until done/failed or 200s timeout."""
     import asyncio
 
-    max_wait = 200   # ثانية
-    interval = 2     # فترة الاستطلاع
+    max_wait = 200
+    interval = 2
 
     for _ in range(max_wait // interval):
         job = job_queue.get_job(job_id)
@@ -916,13 +966,46 @@ async def wait_for_job(job_id: str, user_data=Depends(verify_token)):
 
     raise HTTPException(504, "Job timeout — Colab is taking too long")
 
+
 # ============================================================
-# أضف الـ endpoint ده في main.py
-# بعد أي endpoint موجود — مثلاً بعد /generate-tryon-sync
+# Try-on history — everything a user has generated, newest first.
+# Powers both "View All" and the tries counter on the dashboard.
 # ============================================================
-# بيشتغل بطريقتين:
-#   1. keyword classifier من اسم الملف (فوري)
-#   2. لو الاسم مش واضح → بيحكم من نسبة الـ pixel colors
+
+@app.get("/history")
+def get_history(user_data=Depends(verify_token), db: Session = Depends(get_db)):
+    email = user_data.get("sub")
+    db_user = db.execute(
+        select(users_table).where(users_table.c.Email == email)
+    ).fetchone()
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    rows = db.execute(
+        select(generated_images_table)
+        .where(generated_images_table.c.UserId == db_user.Id)
+        .order_by(generated_images_table.c.CreatedAt.desc())
+    ).fetchall()
+
+    return {
+        "count": len(rows),
+        "items": [
+            {
+                "id":         r.Id,
+                "url":        r.GeneratedImagePath,
+                "cloth_type": r.ClothType,
+                "created_at": str(r.CreatedAt) if r.CreatedAt else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+# ============================================================
+# Garment type auto-detect: filename keywords first (free, instant),
+# then an OpenCV shape heuristic as a fallback
+# ============================================================
 
 @app.post("/detect-garment")
 async def detect_garment(
@@ -983,31 +1066,27 @@ async def detect_garment(
         # Blur خفيف لتنعيم الأطراف
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         
-        # 👇 التعديل السحري: فصل الهدوم عن الخلفية البيضاء أوتوماتيكياً 👇
-        # بنفترض إن الخلفية فاتحة، فالهدوم هتكون الجزء الأغمق
+        # garment is assumed darker than a light background
         _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         
-        # تنظيف الماسك من أي نقط صغيرة جوه القماش
+        # remove small noise specks inside/outside the garment mask
         kernel = np.ones((5, 5), np.uint8)
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
         
-        # استخراج المحيط الخارجي بناءً على الماسك الجديد
         cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = cnts[0] if len(cnts) == 2 else cnts[1] 
         
-        # رسم ماسك مصمت
+        # fill the largest contour into a solid mask
         mask_img = np.zeros_like(gray)
         if contours:
             cv2.drawContours(mask_img, contours, -1, (255), thickness=cv2.FILLED)
 
-        # تحويل لـ Boolean
         mask = mask_img > 0
 
         if not contours or len(contours) == 0:
             return {"cloth_type": "upper", "method": "fallback_no_contours"}
 
-        # نجيب أكبر كونتور
         c = max(contours, key=cv2.contourArea)
         x, y, w, h_box = cv2.boundingRect(c)
         
@@ -1020,7 +1099,7 @@ async def detect_garment(
         if h_roi == 0 or w_roi == 0:
             return {"cloth_type": "upper", "method": "fallback_zero_roi"}
 
-        # حساب النسب
+        # fabric density in the top/middle/bottom thirds of the bounding box
         top_pct  = roi_mask[:h_roi//3,    :].mean()
         mid_pct  = roi_mask[h_roi//3:2*h_roi//3, :].mean()
         bot_pct  = roi_mask[2*h_roi//3:,  :].mean()
@@ -1029,16 +1108,22 @@ async def detect_garment(
 
         print(f"DEBUG ROI → AR: {aspect_ratio:.2f} | Top: {top_pct:.2f} | Mid: {mid_pct:.2f} | Bot: {bot_pct:.2f}")
 
-        # الشروط المعدلة والذكية:
-        # 1. الـ Overall: قطعة طويلة جداً (AR > 1.4) ومكملة لحد تحت (bot_pct > 0.20)
-        if aspect_ratio > 1.4 and bot_pct > 0.20 and top_pct > 0.20:
+        # a tall garment on its own (e.g. a long/oversized t-shirt) still has
+        # AR > 1.4 with full top/bottom density, so aspect ratio alone used to
+        # misclassify it as "overall". Real one-piece outfits (dresses,
+        # jumpsuits) also pinch in at the waist, so require a narrower middle
+        # band as well before calling it "overall".
+        waist_pinch = mid_pct < (top_pct + bot_pct) / 2 * 0.85
+
+        if aspect_ratio > 2.0 and bot_pct > 0.20 and top_pct > 0.20 and waist_pinch:
             cloth_type = "overall"
-            
-        # 2. الـ Lower: إما بنطلون طويل والكثافة تحت بتقل (عشان تفرقة الرجلين)، أو شورت مربع والكثافة فوق أعلى بكثير
+
+        # pants/skirts: either density drops toward the bottom (legs split
+        # the fabric) on a long lower, or top is much denser than bottom
+        # on a short/square one
         elif (aspect_ratio > 1.2 and bot_pct < mid_pct * 0.95 and top_pct < 0.40) or (aspect_ratio <= 1.2 and top_pct > bot_pct * 1.15):
             cloth_type = "lower"
-            
-        # 3. الـ Upper: الباقي
+
         else:
             cloth_type = "upper"
 
@@ -1046,16 +1131,103 @@ async def detect_garment(
     except Exception as e:
         print(f"Detect Error: {e}")
         return {"cloth_type": "upper", "method": "default_fallback", "error": str(e)}
-#============================================================
-# Health check للـ Colab connection (بدون auth للتسهيل)
+
+
+# ============================================================
+# Size recommendation — purely informational for the user.
+# CatVTON never receives a "size" input, so this never touches
+# the generation flow in /generate-tryon-sync.
+# ============================================================
+
+def compute_recommended_sizes(chest: float, waist: float, hips: float):
+    """Simple chest/waist -> size chart. Tune the cm breakpoints as needed."""
+    def band(value: float) -> str:
+        if value < 86:  return "XS"
+        if value < 94:  return "S"
+        if value < 102: return "M"
+        if value < 110: return "L"
+        if value < 118: return "XL"
+        return "XXL"
+
+    top_size    = band(chest)
+    bottom_size = band(waist if waist else hips)
+    return top_size, bottom_size
+
+
+@app.post("/measurements")
+def save_measurements(
+    data: MeasurementsInput,
+    user_data=Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    email = user_data.get("sub")
+    db_user = db.execute(
+        select(users_table).where(users_table.c.Email == email)
+    ).fetchone()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    top_size, bottom_size = compute_recommended_sizes(data.chest, data.waist, data.hips)
+
+    existing = db.execute(
+        select(measurements_table).where(measurements_table.c.UserId == db_user.Id)
+    ).fetchone()
+
+    values = dict(
+        Height=data.height,
+        Weight=data.weight,
+        Chest=data.chest,
+        Waist=data.waist,
+        Hips=data.hips,
+        RecommendedTopSize=top_size,
+        RecommendedBottomSize=bottom_size,
+    )
+
+    if existing:
+        db.execute(
+            measurements_table.update()
+            .where(measurements_table.c.UserId == db_user.Id)
+            .values(**values)
+        )
+    else:
+        db.execute(
+            measurements_table.insert().values(UserId=db_user.Id, **values)
+        )
+    db.commit()
+
+    return {"recommended_top_size": top_size, "recommended_bottom_size": bottom_size}
+
+
+@app.get("/measurements")
+def get_measurements(user_data=Depends(verify_token), db: Session = Depends(get_db)):
+    email = user_data.get("sub")
+    db_user = db.execute(
+        select(users_table).where(users_table.c.Email == email)
+    ).fetchone()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    row = db.execute(
+        select(measurements_table).where(measurements_table.c.UserId == db_user.Id)
+    ).fetchone()
+
+    if not row:
+        return {"has_measurements": False}
+
+    return {
+        "has_measurements": True,
+        "recommended_top_size": row.RecommendedTopSize,
+        "recommended_bottom_size": row.RecommendedBottomSize,
+    }
+
+
+# ============================================================
+# Colab model health check (no auth, so it's easy to ping)
 # ============================================================
 
 @app.get("/model/health")
 async def model_health():
-    """
-    بيتحقق إن الـ Colab server شغال.
-    شغّله في المتصفح قبل ما تجرب الـ try-on.
-    """
+    """Checks the Colab tunnel is reachable before running a try-on."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(model.health_url)
