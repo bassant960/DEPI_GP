@@ -161,7 +161,7 @@
                 <div id="uploaded-preview"
                     class="relative w-full h-48 rounded-2xl overflow-hidden border border-white/60 shadow-inner group hidden">
                     <img id="model-image" src="" alt="Model"
-                        class="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105">
+                           class="w-full h-full object-contain object-center transition-transform duration-500 group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-4">
                         <p class="text-white text-sm font-medium flex items-center gap-2">
                             <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -199,19 +199,19 @@
         </svg>
     </div>
     <img src="http://127.0.0.1:8000/static/assets/00008_00.jpg"
-        alt="T-Shirt" class="w-full h-32 object-cover bg-white">
+    alt="T-Shirt" class="w-full h-32 object-contain bg-white">
 </div>
 <!-- Item 2 -->
 <div class="garment-item cursor-pointer rounded-xl overflow-hidden border-2 border-transparent hover:border-white/80 transition-all opacity-70 hover:opacity-100"
     onclick="selectGarment(this, 'dress')">
     <img src="http://127.0.0.1:8000/static/assets/03524_00.jpg"
-        alt="Jacket" class="w-full h-32 object-cover bg-white">
+    alt="Jacket" class="w-full h-32 object-contain bg-white">
 </div>
 <!-- Item 3 -->
 <div class="garment-item cursor-pointer rounded-xl overflow-hidden border-2 border-transparent hover:border-white/80 transition-all opacity-70 hover:opacity-100"
     onclick="selectGarment(this, 'shirt')">
     <img src="http://127.0.0.1:8000/static/assets/lower_jeans.png"
-        alt="Shirt" class="w-full h-32 object-cover bg-white">
+    alt="Shirt" class="w-full h-32 object-contain bg-white">
 </div>
                     <!-- Item 4 -->
                     <div id="upload-garment-card"
@@ -836,9 +836,8 @@
 
                 // تحديث شكل الكارت لعرض الصورة المرفوعة مكان الأيقونة
                 garmentCard.innerHTML = `
-                    <img src="${localImageUrl}" class="w-full h-32 object-cover bg-white rounded-xl" alt="Uploaded Garment">
-                    <input type="file" id="garment-file-input" accept="image/*" style="display: none;" />
-                `;
+                                     <img src="${localImageUrl}" class="w-full h-32 object-contain bg-white rounded-xl" alt="Uploaded Garment">
+                                     <input type="file" id="garment-file-input" accept="image/*" style="display: none;" /> `;
 
                 // إعادة ربط الـ input الجديد تحسباً لو اليوزر حب يغير الصورة تاني
                 const newInput = document.getElementById('garment-file-input');
