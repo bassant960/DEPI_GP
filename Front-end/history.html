@@ -78,19 +78,23 @@
         }
 
         function renderCard(item) {
-            const label = CLOTH_TYPE_LABELS[item.cloth_type] || item.cloth_type || '';
-            return `
-                <div class="glass rounded-2xl overflow-hidden group relative">
-                    <div class="aspect-[3/4] bg-white/40">
-                        <img src="${item.url}" alt="Try-on result" class="w-full h-full object-cover" loading="lazy">
-                    </div>
-                    <div class="p-3 flex items-center justify-between">
-                        <span class="text-[11px] text-gray-500">${formatDate(item.created_at)}</span>
-                        ${label ? `<span class="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">${label}</span>` : ''}
-                    </div>
-                </div>
-            `;
-        }
+    const label = CLOTH_TYPE_LABELS[item.cloth_type] || item.cloth_type || '';
+    
+    // هنا نتأكد لو الـ url راجع كـ path نسبي ندمجه مع الـ API_BASE المكتوب فوق
+    const imageUrl = item.url.startsWith('http') ? item.url : `${API_BASE}${item.url}`;
+
+    return `
+        <div class="glass rounded-2xl overflow-hidden group relative">
+            <div class="aspect-[3/4] bg-white/40">
+                <img src="${imageUrl}" alt="Try-on result" class="w-full h-full object-cover" loading="lazy">
+            </div>
+            <div class="p-3 flex items-center justify-between">
+                <span class="text-[11px] text-gray-500">${formatDate(item.created_at)}</span>
+                ${label ? `<span class="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">${label}</span>` : ''}
+            </div>
+        </div>
+    `;
+}
 
         async function loadHistory() {
             const loadingEl = document.getElementById('loading-state');
