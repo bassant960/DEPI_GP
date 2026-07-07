@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+python-dotenv
+python-multipart
+python-jose
+passlib[bcrypt]
+bcrypt
+fastapi-mail
+httpx
+pydantic
+email-validator
+aiofiles
+opencv-python
+numpy
+Pillow

@@ -1021,7 +1021,7 @@ async def detect_garment(
 
     # ── 1. Keyword classifier من اسم الملف ──────────────
     UPPER_KW   = {'shirt','top','blouse','hoodie','jacket','coat','sweater',
-                  'tshirt','t-shirt','pullover','vest','cardigan','crop',
+                  'tshirt','t-shirt','tee','pullover','vest','cardigan','crop',
                   'polo','sweatshirt','upper'}
     LOWER_KW   = {'pant','trouser','jean','skirt','short','legging',
                   'bottom','lower','chino'}
@@ -1106,7 +1106,33 @@ async def detect_garment(
         
         aspect_ratio = h_box / float(w)
 
-        print(f"DEBUG ROI → AR: {aspect_ratio:.2f} | Top: {top_pct:.2f} | Mid: {mid_pct:.2f} | Bot: {bot_pct:.2f}")
+        # ── Leg-split check ──────────────────────────────────
+        # Pants/shorts/skirts almost always show a visible gap between
+        # the two legs near the hem. A t-shirt (even a wide, short one
+        # with sleeves spread out) stays a single solid blob top-to-
+        # bottom. Counting how many separate filled segments each row
+        # has is a much more reliable "is this a lower-body garment?"
+        # signal than density-ratio alone, which was flagging wide-
+        # shouldered t-shirts as "lower".
+        def _segments_in_row(row: np.ndarray) -> int:
+            if not row.any():
+                return 0
+            edges = np.diff(row.astype(int))
+            count = int(np.sum(edges == 1))
+            if row[0]:
+                count += 1
+            return count
+
+        bottom_band = roi_mask[int(h_roi * 0.65):, :]
+        split_rows, checked_rows = 0, 0
+        for row in bottom_band:
+            if row.any():
+                checked_rows += 1
+                if _segments_in_row(row) >= 2:
+                    split_rows += 1
+        has_leg_split = checked_rows > 0 and (split_rows / checked_rows) > 0.25
+
+        print(f"DEBUG ROI → AR: {aspect_ratio:.2f} | Top: {top_pct:.2f} | Mid: {mid_pct:.2f} | Bot: {bot_pct:.2f} | LegSplit: {has_leg_split}")
 
         # a tall garment on its own (e.g. a long/oversized t-shirt) still has
         # AR > 1.4 with full top/bottom density, so aspect ratio alone used to
@@ -1115,13 +1141,18 @@ async def detect_garment(
         # band as well before calling it "overall".
         waist_pinch = mid_pct < (top_pct + bot_pct) / 2 * 0.85
 
-        if aspect_ratio > 2.0 and bot_pct > 0.20 and top_pct > 0.20 and waist_pinch:
+        if has_leg_split and not (aspect_ratio > 2.0 and waist_pinch):
+            # clear two-leg gap → pants/shorts/skirt, unless it's actually
+            # a pinched-waist one-piece (dress/jumpsuit split by the hem)
+            cloth_type = "lower"
+
+        elif aspect_ratio > 2.0 and bot_pct > 0.20 and top_pct > 0.20 and waist_pinch:
             cloth_type = "overall"
 
-        # pants/skirts: either density drops toward the bottom (legs split
-        # the fabric) on a long lower, or top is much denser than bottom
-        # on a short/square one
-        elif (aspect_ratio > 1.2 and bot_pct < mid_pct * 0.95 and top_pct < 0.40) or (aspect_ratio <= 1.2 and top_pct > bot_pct * 1.15):
+        # fallback for lower garments with no clean leg gap detected
+        # (e.g. tight leggings, or a pencil skirt): density drops toward
+        # the bottom on a long lower
+        elif aspect_ratio > 1.2 and bot_pct < mid_pct * 0.95 and top_pct < 0.40:
             cloth_type = "lower"
 
         else:
