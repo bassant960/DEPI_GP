@@ -136,25 +136,30 @@
                             class="w-7 h-7 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center text-sm">1</span>
                         Your Photo
                     </h3>
-                    <button id="change-photo-btn" onclick="document.getElementById('file-upload').click()"
-                        class="text-sm text-brand-600 font-semibold hover:underline hidden">Change</button>
+                    <div class="flex items-center gap-3">
+                        <button id="use-camera-btn" onclick="openCameraModal()"
+                            class="text-sm text-brand-600 font-semibold hover:underline">Use Camera</button>
+                        <button id="change-photo-btn" onclick="document.getElementById('file-upload').click()"
+                            class="text-sm text-brand-600 font-semibold hover:underline hidden">Change</button>
+                    </div>
                 </div>
 
                 <!-- Hidden File Input -->
                 <input type="file" id="file-upload" class="hidden" accept="image/*" onchange="handleImageUpload(event)">
 
                 <!-- Upload State (Initial) -->
-                <div id="upload-placeholder" onclick="document.getElementById('file-upload').click()"
-                    class="w-full h-48 bg-white/50 rounded-2xl overflow-hidden border-2 border-dashed border-brand-300 transition-colors hover:bg-white/80 hover:border-brand-500 cursor-pointer flex flex-col items-center justify-center group-hover:shadow-md">
-                    <div
-                        class="w-14 h-14 bg-brand-100 rounded-full flex items-center justify-center mb-3 text-brand-500 group-hover:scale-110 transition-transform">
+                <div id="upload-placeholder"
+                    class="w-full h-48 bg-white/50 rounded-2xl overflow-hidden border-2 border-dashed border-brand-300 transition-colors hover:bg-white/80 hover:border-brand-500 flex flex-col items-center justify-center group-hover:shadow-md">
+                    <div onclick="document.getElementById('file-upload').click()"
+                        class="w-14 h-14 bg-brand-100 rounded-full flex items-center justify-center mb-3 text-brand-500 group-hover:scale-110 transition-transform cursor-pointer">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                         </svg>
                     </div>
-                    <span class="text-gray-900 font-bold">Upload Photo</span>
-                    <span class="text-gray-500 text-xs mt-1 font-medium">Upload a photo of your body here</span>
+                    <span onclick="document.getElementById('file-upload').click()" class="text-gray-900 font-bold cursor-pointer">Upload Photo</span>
+                    <span class="text-gray-500 text-xs mt-1 font-medium">Upload a photo, or</span>
+                    <button onclick="openCameraModal()" class="text-brand-600 text-xs font-bold mt-1 hover:underline">use your camera instead</button>
                 </div>
 
                 <!-- Uploaded Preview (Hidden Initially) -->
@@ -198,7 +203,7 @@
                 d="M5 13l4 4L19 7"></path>
         </svg>
     </div>
-    <img src="http://127.0.0.1:8000/static/assets/00396_00.jpg"
+    <img src="http://127.0.0.1:8000/static/assets/00008_00.jpg"
     alt="T-Shirt" class="w-full h-32 object-contain bg-white">
 </div>
 <!-- Item 2 -->
@@ -480,7 +485,7 @@
         //   2. لو الاسم مش واضح → بيبعت للباك بتاعنا /detect-garment
         // ============================================================
         const UPPER_KEYWORDS  = ['shirt','top','blouse','hoodie','jacket','coat',
-                                  'sweater','tshirt','t-shirt','pullover','vest',
+                                  'sweater','tshirt','t-shirt','tee','pullover','vest',
                                   'cardigan','crop','polo','sweatshirt','upper'];
         const LOWER_KEYWORDS  = ['pant','trouser','jean','skirt','short','legging',
                                   'bottom','lower','chino'];
@@ -579,7 +584,11 @@
         async function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+            useImageFile(file);
+        }
 
+        // Shared by both the file-picker and the camera capture flow
+        function useImageFile(file) {
             // حفظ الملف عشان نبعته للموديل بعدين
             globalPersonImageFile = file;
 
@@ -592,6 +601,58 @@
                 document.getElementById('change-photo-btn').classList.remove('hidden');
             };
             reader.readAsDataURL(file);
+        }
+
+        // ============================================================
+        // Camera Capture Logic — live preview + green fit-guide box,
+        // snaps a frame, converts it to a File, then feeds it into the
+        // same useImageFile() path as a normal upload.
+        // ============================================================
+        let cameraStream = null;
+
+        async function openCameraModal() {
+            const modal = document.getElementById('camera-modal');
+            modal.classList.remove('hidden');
+            const video = document.getElementById('camera-feed');
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
+                    audio: false
+                });
+                video.srcObject = cameraStream;
+                await video.play();
+            } catch (err) {
+                console.error('Camera error:', err);
+                alert('مقدرش أفتح الكاميرا. تأكدي إنك سامحة للمتصفح يستخدم الكاميرا.');
+                closeCameraModal();
+            }
+        }
+
+        function closeCameraModal() {
+            const modal = document.getElementById('camera-modal');
+            modal.classList.add('hidden');
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+        }
+
+        function capturePhoto() {
+            const video  = document.getElementById('camera-feed');
+            const canvas = document.getElementById('camera-canvas');
+            if (!video.videoWidth) return; // stream not ready yet
+
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                if (!blob) return;
+                const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                useImageFile(file);
+                closeCameraModal();
+            }, 'image/jpeg', 0.92);
         }
 
         // ============================================================
@@ -907,6 +968,39 @@
             }
         });
     </script>
+
+    <!-- Camera Capture Modal -->
+    <div id="camera-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full flex flex-col items-center gap-4">
+            <div class="w-full flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-900">Position yourself in the frame</h3>
+                <button onclick="closeCameraModal()" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Video + green guide box overlay -->
+            <div class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden">
+                <video id="camera-feed" class="w-full h-full object-cover" playsinline autoplay muted></video>
+
+                <!-- Green guide box: helps the user line up their whole body -->
+                <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div class="w-[62%] h-[88%] border-4 border-green-400 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"></div>
+                </div>
+
+                <p class="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-white text-xs font-semibold drop-shadow">
+                    Stand back so your full body fits inside the green box
+                </p>
+            </div>
+
+            <canvas id="camera-canvas" class="hidden"></canvas>
+
+            <div class="flex gap-3 w-full">
+                <button onclick="closeCameraModal()"
+                    class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
+                <button onclick="capturePhoto()"
+                    class="flex-1 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-accent-500 text-white font-bold shadow-md hover:opacity-90 transition-opacity">Capture</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
