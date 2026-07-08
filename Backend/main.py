@@ -35,12 +35,8 @@ dotenv_path = os.path.join(base_dir, ".env")
 
 load_dotenv(dotenv_path)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# DATA_DIR بيتحدد من Azure App Setting ويتربط بـ Azure Files mount
-# عشان الداتابيز والصور المرفوعة متتمسحش لما الـ container يعمل restart
-DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
-os.makedirs(DATA_DIR, exist_ok=True)
 DATABASE_FILE = "vwear.db"
-DATABASE_PATH = os.path.join(DATA_DIR, DATABASE_FILE)
+DATABASE_PATH = os.path.join(BASE_DIR, DATABASE_FILE)
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
@@ -164,7 +160,7 @@ security = HTTPBearer()
 # ============================================================
 # 4. Uploads Folder
 # ============================================================
-UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ============================================================
@@ -175,12 +171,9 @@ app = FastAPI(title="VWear Backend API")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "..", "Front-end")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# لو عايز تقفلها على دومين معين بس بعد الـ deploy، حط الدومين هنا بدل "*"
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1603,5 +1596,4 @@ def change_role(
     return {"message": f"Role changed to {data.role} successfully"}
  
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

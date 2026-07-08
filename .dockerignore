@@ -1,7 +1,0 @@
-Backend/.env
-Backend/uploads/
-Backend/vwear.db
-Backend/__pycache__/
-**/__pycache__/
-*.pyc
-.git
