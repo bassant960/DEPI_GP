@@ -11,7 +11,8 @@ load_dotenv()
 # Config
 # ============================================================
 
-UPLOAD_DIR = "uploads"
+# لازم يبقى نفس المسار المستخدم في main.py عشان النتايج تتحفظ وتترجع من نفس المكان
+UPLOAD_DIR = os.path.join(os.getenv("DATA_DIR", "."), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ============================================================
