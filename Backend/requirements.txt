@@ -11,6 +11,6 @@ httpx
 pydantic
 email-validator
 aiofiles
-opencv-python
+opencv-python-headless
 numpy
 Pillow
